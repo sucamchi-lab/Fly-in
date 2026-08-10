@@ -1,0 +1,15 @@
+# Test map: Blocked zones that must be avoided
+# Drones can only take the lower path (priority zones), the upper path is blocked
+nb_drones: 3
+
+start_hub: start 0 0 [color=green]
+hub: blocked_zone 1 1 [zone=blocked color=gray]
+hub: safe_path 1 -1 [zone=priority color=cyan]
+hub: waypoint 2 0 [color=blue]
+end_hub: goal 3 0 [color=red]
+
+connection: start-blocked_zone
+connection: start-safe_path
+connection: blocked_zone-waypoint
+connection: safe_path-waypoint
+connection: waypoint-goal

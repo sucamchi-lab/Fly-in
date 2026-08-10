@@ -1,0 +1,13 @@
+# Test map: Capacity bottleneck forces drones to spread across paths
+# Two parallel paths, each with capacity=2, total 4 drones
+nb_drones: 4
+
+start_hub: start 0 0 [color=green]
+hub: path_a 1 1 [color=blue max_drones=2]
+hub: path_b 1 -1 [color=blue max_drones=2]
+end_hub: goal 2 0 [color=red]
+
+connection: start-path_a [max_link_capacity=2]
+connection: start-path_b [max_link_capacity=2]
+connection: path_a-goal [max_link_capacity=2]
+connection: path_b-goal [max_link_capacity=2]

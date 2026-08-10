@@ -1,0 +1,9 @@
+# Test map: Single drone, minimal path
+nb_drones: 1
+
+start_hub: start 0 0 [color=green]
+hub: midway 1 0 [color=blue]
+end_hub: goal 2 0 [color=red]
+
+connection: start-midway
+connection: midway-goal
