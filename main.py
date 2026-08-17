@@ -31,27 +31,15 @@ from simulation import RoutingError, Simulation, TurnResult
 
 
 class FlyInApp:
-    """Wires the parser, the graph, the simulation and the display together.
-
-    Attributes:
-        args: The parsed command-line arguments.
-    """
+    """Wires the parser, the graph, the simulation and the display together."""
 
     def __init__(self, argv: list[str] | None = None) -> None:
-        """Parse command-line arguments.
-
-        Args:
-            argv: Argument list to read. Defaults to ``sys.argv[1:]``.
-        """
+        """Parse command-line arguments."""
         self.args = self.build_parser().parse_args(argv)
 
     @staticmethod
     def build_parser() -> argparse.ArgumentParser:
-        """Describe the command-line interface.
-
-        Returns:
-            The configured argument parser.
-        """
+        """Describe the command-line interface."""
         parser = argparse.ArgumentParser(
             description="Route a fleet of drones across a network of zones.",
         )
@@ -69,14 +57,10 @@ class FlyInApp:
         return parser
 
     def run(self) -> int:
-        """Run the whole program.
+        """Run the whole program, returning 0 on success or 1 on failure.
 
-        Every foreseeable failure — an unreadable file, a malformed map,
-        an unreachable goal — is reported as a message on standard error
-        rather than a traceback.
-
-        Returns:
-            0 on success, 1 if the map could not be parsed or flown.
+        Any expected failure — a bad file, a bad map, an unreachable
+        goal — is printed as a plain message instead of a traceback.
         """
         if self.args.debug:
             import pdb
@@ -108,17 +92,8 @@ class FlyInApp:
     def visualize(self, graph: Graph, nb_drones: int) -> int:
         """Open the pygame window on the same map.
 
-        The visualizer builds and drives its own simulation, starting
-        from turn zero and waiting for the viewer to choose how to watch
-        it. pygame is imported here so that ``--no-gui`` works even when
-        it is not installed.
-
-        Args:
-            graph: The zone network.
-            nb_drones: How many drones to route.
-
-        Returns:
-            0 on success, 1 if pygame is unavailable.
+        pygame is imported here, not at the top of the file, so that
+        ``--no-gui`` still works when it is not installed.
         """
         try:
             from visualizer import Visualizer
@@ -134,19 +109,8 @@ class FlyInApp:
     def report(
         simulation: Simulation, results: list[TurnResult]
     ) -> None:
-        """Write the run summary to standard error.
-
-        Alongside the turn count, this prints the secondary metrics the
-        subject suggests, plus the cheapest route a single drone could
-        have taken. That last figure is the floor the fleet is working
-        against: the gap between it and the turn count is entirely the
-        cost of congestion, which makes a map's difficulty legible at a
-        glance.
-
-        Args:
-            simulation: The completed simulation.
-            results: Every turn of the run.
-        """
+        """Write the run summary to standard error: turn count, plus the
+        cheapest single-drone route as a baseline to compare against."""
         nb_drones = len(simulation.drones)
         moves = sum(len(result.moves) for result in results)
         turns = len(results)
@@ -169,14 +133,7 @@ class FlyInApp:
 
     @staticmethod
     def fail(message: str) -> int:
-        """Report an error on standard error.
-
-        Args:
-            message: What went wrong.
-
-        Returns:
-            1, so callers can ``return self.fail(...)`` directly.
-        """
+        """Print an error and return 1, for ``return self.fail(...)``."""
         print(f"error: {message}", file=sys.stderr)
         return 1
 

@@ -1,20 +1,14 @@
 """The zone network, and the pathfinding done on it.
 
-:class:`Graph` wraps the parsed map in the two lookups the simulation
-actually needs — "who are my neighbours?" and "which connection joins
-these two zones?" — and runs Dijkstra's algorithm over it.
+:class:`Graph` builds a simple adjacency list from the parsed map and
+runs Dijkstra's algorithm over it, once, backwards from the goal. That
+gives every zone its remaining cost to the goal, so a drone can just
+look at its neighbours and step toward whichever is closest — no route
+needs to be planned per drone.
 
-Only one search is ever needed. Rather than computing a route per drone,
-the graph is searched **once, backwards from the goal**, producing the
-cost in turns from every zone to the goal. Every drone then simply steps
-to whichever reachable neighbour has the lowest remaining cost. That
-single table is what makes routing cheap: it is computed once, and each
-drone's decision afterwards is a scan of its own neighbours.
-
-Edge weights come from the destination zone's type: entering a normal or
-priority zone costs 1 turn, entering a restricted zone costs 2, and
-blocked zones are removed from the graph entirely so no route can use
-them.
+Entering a normal or priority zone costs 1 turn, a restricted zone costs
+2, and blocked zones are left out of the graph entirely so no route can
+use them.
 """
 
 from __future__ import annotations
@@ -29,21 +23,10 @@ class Graph:
 
     Blocked zones are dropped when the adjacency is built, so every
     method below can assume that whatever it returns is flyable.
-
-    Attributes:
-        zones: Every zone from the map, keyed by name, including blocked
-            ones (the visualizer still draws them).
-        connections: Every connection from the map, in file order.
-        start: Name of the start hub.
-        end: Name of the end hub.
     """
 
     def __init__(self, map_data: MapData) -> None:
-        """Build the adjacency and link lookups from a parsed map.
-
-        Args:
-            map_data: The output of :class:`parser.MapParser`.
-        """
+        """Build the adjacency and link lookups from a parsed map."""
         self.zones = map_data.zones
         self.connections = map_data.connections
         self.start = map_data.start_zone
@@ -67,43 +50,19 @@ class Graph:
             self._links[connection.key] = connection
 
     def neighbors(self, zone_name: str) -> list[str]:
-        """Return the names of the zones directly reachable from a zone.
-
-        Args:
-            zone_name: The zone to look up.
-
-        Returns:
-            Neighbour names. Empty if the zone is unknown, blocked, or
-            has no flyable link.
-        """
+        """Names of the zones directly reachable from a zone."""
         return self._neighbors.get(zone_name, [])
 
     def link(self, zone_a: str, zone_b: str) -> Connection | None:
-        """Return the connection joining two zones, if there is one.
-
-        Args:
-            zone_a: One endpoint.
-            zone_b: The other endpoint.
-
-        Returns:
-            The connection, or None if the two zones are not linked.
-        """
+        """The connection joining two zones, or None if there isn't one."""
         key = (zone_a, zone_b) if zone_a < zone_b else (zone_b, zone_a)
         return self._links.get(key)
 
     def distances_to_goal(self) -> dict[str, int]:
         """Cost in turns from every zone to the end hub.
 
-        This is Dijkstra's algorithm run backwards from the goal. Because
-        the graph is undirected and an edge's weight depends only on
-        which zone you are entering, the cost of the step
-        ``neighbour -> current`` is simply the entry cost of ``current``,
-        which is what the search relaxes on.
-
-        Returns:
-            Zone name to remaining cost in turns. Zones from which the
-            goal cannot be reached are absent, so a plain ``in`` test
-            answers "is this zone usable at all?".
+        Dijkstra's algorithm run backwards from the goal. Zones the goal
+        cannot be reached from are simply absent from the result.
         """
         distances: dict[str, int] = {self.end: 0}
         queue: list[tuple[int, str]] = [(0, self.end)]
@@ -126,24 +85,11 @@ class Graph:
     def shortest_path(
         self, start: str, distances: dict[str, int]
     ) -> list[str] | None:
-        """Walk the cheapest route from a zone to the goal.
+        """Walk from a zone to the goal, always stepping to the closest
+        neighbour. Priority zones win ties. Returns None if unreachable.
 
-        With the distance table in hand there is nothing left to search:
-        from each zone, step to the neighbour whose remaining cost is
-        lowest. Priority zones win ties, which is how the subject's
-        "prefer priority zones" rule is honoured.
-
-        This is used for reporting and for the visualizer's route hints;
-        the simulation itself makes the same choice one step at a time so
-        that it can react to congestion.
-
-        Args:
-            start: Zone to start from.
-            distances: Table from :meth:`distances_to_goal`.
-
-        Returns:
-            Zone names from ``start`` to the goal inclusive, or None if
-            the goal is unreachable.
+        Used for reporting and the visualizer's route hint; the actual
+        simulation decides one step at a time so it can react to traffic.
         """
         if start not in distances:
             return None
@@ -168,29 +114,10 @@ class Graph:
     def route_rank(
         self, zone_name: str, distances: dict[str, int]
     ) -> tuple[int, bool]:
-        """Sort key that ranks a candidate next hop, lowest first.
-
-        Args:
-            zone_name: The candidate neighbour.
-            distances: Table from :meth:`distances_to_goal`.
-
-        Returns:
-            Remaining cost first, then whether the zone is *not* a
-            priority zone — so that on equal cost, priority zones sort
-            ahead of the rest.
-        """
+        """Sort key for picking a next hop: lowest cost first, priority
+        zones breaking ties."""
         return (distances[zone_name], not self.zones[zone_name].is_priority)
 
     def zone(self, zone_name: str) -> Zone:
-        """Return a zone by name.
-
-        Args:
-            zone_name: The zone to look up.
-
-        Returns:
-            The zone.
-
-        Raises:
-            KeyError: If no zone by that name exists.
-        """
+        """Look up a zone by name."""
         return self.zones[zone_name]

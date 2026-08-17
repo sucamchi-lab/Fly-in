@@ -41,14 +41,10 @@ Rgb = tuple[int, int, int]
 class Mode(Enum):
     """What the window is doing with the simulation right now."""
 
-    #: Opened but not started — waiting for the viewer to choose how to watch.
-    READY = "ready"
-    #: Advancing on a timer.
+    READY = "ready"  # opened, waiting for the viewer to choose how to watch
     PLAYING = "playing"
-    #: Advancing on a timer, temporarily held.
     PAUSED = "paused"
-    #: Advancing one turn per key press.
-    STEPPING = "stepping"
+    STEPPING = "stepping"  # one turn per key press
 
     @property
     def label(self) -> str:
@@ -64,20 +60,8 @@ class Mode(Enum):
 class Visualizer:
     """Draws and drives a :class:`Simulation` in a pygame window.
 
-    The visualizer builds its own simulation from the graph, which is
-    what lets it restart the run on demand rather than being tied to a
-    single played-out instance.
-
-    Attributes:
-        graph: The zone network being flown.
-        nb_drones: How many drones each run routes.
-        simulation: The run currently on screen.
-        history: Every turn of that run so far.
-        landed: Drone id to the slot it parked in inside the goal.
-        mode: What the window is doing — see :class:`Mode`.
-        running: False once the viewer has closed the window.
-        turns_per_second: Playback speed.
-        error: Message from a failed step, if the run could not finish.
+    Builds its own simulation from the graph, so it can restart the run
+    on demand instead of being tied to one played-out instance.
     """
 
     PANEL_WIDTH = 280
@@ -123,17 +107,7 @@ class Visualizer:
         width: int = 1100,
         height: int = 750,
     ) -> None:
-        """Open the window and lay the map out on screen.
-
-        Args:
-            graph: The zone network to fly.
-            nb_drones: How many drones to route.
-            width: Window width in pixels.
-            height: Window height in pixels.
-
-        Raises:
-            RoutingError: If the goal cannot be reached from the start.
-        """
+        """Open the window and lay the map out on screen."""
         self.graph = graph
         self.nb_drones = nb_drones
         self.running = True
@@ -164,8 +138,8 @@ class Visualizer:
     def restart(self) -> None:
         """Throw the current run away and set a fresh one up, unstarted.
 
-        This defines the whole of the per-run state, which is why
-        replaying is just a matter of calling it again.
+        Defines the whole of the per-run state, so replaying is just a
+        matter of calling this again.
         """
         self.simulation = Simulation(self.graph, self.nb_drones)
         self.history: list[TurnResult] = []
@@ -201,11 +175,7 @@ class Visualizer:
                 self._handle_key(event.key)
 
     def _handle_key(self, key: int) -> None:
-        """Apply a single key press.
-
-        Args:
-            key: A pygame key constant.
-        """
+        """Apply a single key press."""
         if key in (pygame.K_ESCAPE, pygame.K_q):
             self.running = False
         elif key == pygame.K_r:
@@ -240,11 +210,7 @@ class Visualizer:
         )
 
     def _update(self, elapsed: float) -> None:
-        """Advance playback by one frame.
-
-        Args:
-            elapsed: Seconds since the previous frame.
-        """
+        """Advance playback by one frame, given seconds since the last one."""
         # The animation runs slightly faster than the turn rate so each
         # hop settles before the next one starts.
         self.progress = min(
@@ -284,11 +250,8 @@ class Visualizer:
     # --- Geometry ----------------------------------------------------
 
     def _layout(self) -> dict[str, tuple[float, float]]:
-        """Scale the map's zone coordinates to fit the drawing area.
-
-        Returns:
-            Pixel position for each zone, keyed by name.
-        """
+        """Scale the map's zone coordinates to pixel positions, keyed by
+        zone name."""
         zones = list(self.graph.zones.values())
         if not zones:
             return {}
@@ -316,17 +279,10 @@ class Visualizer:
     def _drone_point(self, drone: Drone) -> tuple[float, float]:
         """Where a drone should be drawn right now, before animation.
 
-        There are three cases. A delivered drone is parked in its slot
-        inside the goal. A drone in flight sits halfway along the
-        connection it is crossing, which is where it conceptually is for
-        those two turns. Anything else is in a zone, nudged off centre
-        so that a stack of drones sharing one zone stays countable.
-
-        Args:
-            drone: The drone to locate.
-
-        Returns:
-            Pixel position.
+        A delivered drone is parked in its goal slot. A drone in flight
+        sits halfway along the connection it's crossing. Anything else
+        is in a zone, nudged off centre so a stack of drones stays
+        countable.
         """
         if drone.drone_id in self.landed:
             return self._parked_point(self.landed[drone.drone_id])
@@ -345,15 +301,9 @@ class Visualizer:
     def _parked_point(self, slot: int) -> tuple[float, float]:
         """Where a delivered drone rests inside the goal.
 
-        Slots are laid out on a golden-angle spiral, which fills a disc
-        evenly from the centre outwards, so the goal packs neatly however
-        many drones end up in it.
-
-        Args:
-            slot: The drone's arrival order, counting from zero.
-
-        Returns:
-            Pixel position.
+        Slots sit on a golden-angle spiral, which fills a disc evenly
+        from the centre outwards, so the goal packs neatly however many
+        drones end up in it. ``slot`` is the drone's arrival order.
         """
         centre = self.positions.get(self.graph.end, (0.0, 0.0))
         angle = slot * self.GOLDEN_ANGLE
@@ -364,22 +314,13 @@ class Visualizer:
         )
 
     def _parked_spacing(self) -> float:
-        """Gap between parked drones, tightened when the goal fills up.
-
-        Returns:
-            The spacing to use, never more than
-            :attr:`PARKED_SPACING`.
-        """
+        """Gap between parked drones, tightened when the goal fills up."""
         outermost = math.sqrt(max(self.nb_drones - 1, 1))
         room = (self.MAX_GOAL_RADIUS - self.DRONE_RADIUS) / outermost
         return min(self.PARKED_SPACING, room)
 
     def _parked_radius(self) -> float:
-        """How large the drone cluster inside the goal currently is.
-
-        Returns:
-            Radius in pixels covering every drone parked so far.
-        """
+        """Radius in pixels covering every drone parked in the goal so far."""
         if not self.landed:
             return 0.0
         furthest = math.sqrt(len(self.landed) - 1)
@@ -389,28 +330,14 @@ class Visualizer:
         """The radius to draw a zone at.
 
         The goal swells as drones land in it, so the delivered fleet
-        always sits inside the circle rather than spilling over its
-        edge — the goal visibly fills up as the run proceeds.
-
-        Args:
-            zone: The zone being drawn.
-
-        Returns:
-            Radius in pixels.
+        always sits inside the circle instead of spilling over its edge.
         """
         if not zone.is_end:
             return float(self.ZONE_RADIUS)
         return max(float(self.ZONE_RADIUS), self._parked_radius() + 4)
 
     def _animated_point(self, drone: Drone) -> tuple[float, float]:
-        """A drone's position for this frame, interpolated toward its target.
-
-        Args:
-            drone: The drone to locate.
-
-        Returns:
-            Pixel position.
-        """
+        """A drone's position this frame, interpolated toward its target."""
         target = self._drone_point(drone)
         start = self.previous.get(drone.drone_id, target)
         return (
@@ -490,12 +417,8 @@ class Visualizer:
                 )
 
     def _draw_drones(self) -> None:
-        """Draw every drone as a numbered dot, delivered ones included.
-
-        Drones that have arrived stay on screen, parked inside the goal,
-        so the fleet is never lost track of: at any moment the picture
-        accounts for all of them.
-        """
+        """Draw every drone as a numbered dot, including delivered ones
+        parked inside the goal."""
         parked_radius = int(
             min(self.DRONE_RADIUS, self._parked_spacing() * 0.6)
         )
@@ -580,12 +503,7 @@ class Visualizer:
                 y += 16
 
     def _draw_opening_card(self) -> None:
-        """Offer the two ways to watch, before anything has moved.
-
-        The run does not start on its own: the map is laid out and
-        waiting, so the starting positions and the shape of the network
-        can be read before drones begin covering them up.
-        """
+        """Offer the two ways to watch, before anything has moved."""
         self._draw_card(
             f"{self.nb_drones} drones, {len(self.graph.zones)} zones",
             [
@@ -612,13 +530,8 @@ class Visualizer:
     def _draw_card(
         self, headline: str, choices: list[tuple[str, str]], color: Rgb
     ) -> None:
-        """Draw a centred card over the map.
-
-        Args:
-            headline: The line at the top of the card.
-            choices: ``(key, what it does)`` pairs listed underneath.
-            color: Colour for the headline.
-        """
+        """Draw a centred card over the map: a headline, then a list of
+        ``(key, what it does)`` choices underneath."""
         line_height = 24
         widths = [self.font_large.size(headline)[0] + 60]
         widths += [
@@ -663,16 +576,8 @@ class Visualizer:
         font: pygame.font.Font | None = None,
         centered: bool = False,
     ) -> None:
-        """Draw a line of text.
-
-        Args:
-            text: What to draw.
-            position: Top-left corner, or the centre if ``centered``.
-            color: Text colour.
-            font: Font to use. Defaults to the small font.
-            centered: If True, centre the text on ``position`` instead of
-                anchoring its top-left corner there.
-        """
+        """Draw a line of text at ``position`` — its top-left corner, or
+        its centre if ``centered``."""
         surface = (font or self.font).render(text, True, color)
         x, y = position
         if centered:
@@ -682,17 +587,8 @@ class Visualizer:
 
     @classmethod
     def zone_color(cls, zone: Zone) -> Rgb:
-        """Pick the colour to draw a zone in.
-
-        An explicit ``color=`` from the map wins, then the start/goal
-        colours, then the colour for the zone's type.
-
-        Args:
-            zone: The zone to colour.
-
-        Returns:
-            An RGB triple.
-        """
+        """Pick the colour to draw a zone in: an explicit ``color=`` from
+        the map first, then start/goal colours, then the zone type's."""
         if zone.color:
             return cls.rgb(zone.color)
         if zone.is_start:
@@ -703,17 +599,8 @@ class Visualizer:
 
     @classmethod
     def rgb(cls, name: str) -> Rgb:
-        """Turn a colour name from a map file into an RGB triple.
-
-        The subject allows any single word here, so unknown names fall
-        back to grey rather than stopping the program.
-
-        Args:
-            name: A colour name such as ``red`` or ``gold``.
-
-        Returns:
-            An RGB triple.
-        """
+        """Turn a colour name like 'red' into an RGB triple, falling
+        back to grey for anything pygame doesn't recognise."""
         try:
             color = pygame.Color(name)
         except ValueError:
