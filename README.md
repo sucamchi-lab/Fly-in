@@ -24,11 +24,7 @@ run can also be watched in a pygame window.
 ```bash
 make install                                     # create venv, install deps
 make run MAP=maps/easy/01_linear_path.txt        # with the pygame window
-make run-no-gui MAP=maps/hard/02_capacity_hell.txt   # text output only
-make debug MAP=maps/easy/01_linear_path.txt      # break into pdb
-make lint                                        # flake8 + mypy
-make lint-strict                                 # flake8 + mypy --strict
-make clean                                       # remove caches
+make run-no-gui MAP=maps/hard/02_capacity_hell.txt   # text output only for testing
 ```
 
 `maps/tests/` holds small single-purpose maps for checking one rule at a
@@ -147,34 +143,15 @@ one decision is what makes the guarantee hold: the space cannot be given
 to anyone else in the meantime, so the landing never needs a capacity
 check and can never fail.
 
-### Complexity
-
-Let *V* be the number of zones, *E* the number of connections and *D* the
-number of drones.
-
-| Step | Cost |
-|------|------|
-| Parsing | O(lines) |
-| Building the graph | O(V + E) |
-| Dijkstra, run **once** | O((V + E) log V) |
-| One drone's decision | O(neighbours) |
-| One turn | O(D · average degree) |
-
-Memory is O(V + E + D). Nothing is recomputed per drone or per turn — the
-distance table is calculated once at startup and read from thereafter,
-which is what keeps the per-turn cost proportional to the fleet size
-rather than to the size of the map.
-
 ## Project structure
 
 | File | Responsibility |
 |------|----------------|
-| `main.py` | `FlyInApp` — command line, output, error reporting |
+| `main.py` | `FlyIn` — command line, output, error reporting |
 | `parser.py` | `MapParser` and the `Zone` / `Connection` / `MapData` types |
 | `graph.py` | `Graph` — adjacency, Dijkstra, route extraction |
 | `simulation.py` | `Simulation`, `Drone`, `TurnResult` — the turn engine |
 | `visualizer.py` | `Visualizer` — the pygame window |
-| `maps/` | Map files, including `maps/tests/` for manual checking |
 
 Every module is built around a class, and the data types are dataclasses,
 `Zone` and `Connection` being frozen since a map does not change once
@@ -260,11 +237,6 @@ D1-goal                # turn 3
 
 ## Performance
 
-To reproduce the whole table:
-
-```bash
-for m in maps/*/*.txt; do .venv/bin/python3 main.py "$m" --no-gui >/dev/null; done
-```
 
 | Map | Drones | Result | Target |
 |-----|--------|--------|--------|
@@ -277,10 +249,8 @@ for m in maps/*/*.txt; do .venv/bin/python3 main.py "$m" --no-gui >/dev/null; do
 | Hard — maze nightmare | 8 | **13** | ≤ 30 |
 | Hard — capacity hell | 12 | **16** | ≤ 35 |
 | Hard — ultimate challenge | 15 | **26** | ≤ 45 |
-| Challenger — the impossible dream | 25 | **43** | record 45 |
+| Challenger — the impossible dream | 25 | **43** | ≤ 45 |
 
-The challenger map is solved in 43 turns, beating the reference record of
-45.
 
 Every one of these runs was verified against the subject's rules —
 zone and connection capacities, the two-turn restricted crossing, blocked
@@ -295,10 +265,9 @@ output rather than by trusting the engine's own counters.
     heap used as Dijkstra's priority queue.
 *   [Python `dataclasses`](https://docs.python.org/3/library/dataclasses.html)
     — the value types for zones, connections and turn results.
-*   [pygame documentation](https://www.pygame.org/docs/) — the visualizer.
-*   [PEP 257](https://peps.python.org/pep-0257/) — docstring conventions.
-*   [mypy](https://mypy.readthedocs.io/) and
-    [flake8](https://flake8.pycqa.org/) — type checking and style.
+*   [pygame documentation](https://www.pygame.org/docs/) 
 
 ### AI usage
+
+AI was used in a responsible manner as a tutor and to assist in algorithm generation, error handling, unit testing and README.md formatting. All code has been fully reviewed and is understood by the author.
 

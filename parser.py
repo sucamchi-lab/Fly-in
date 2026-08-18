@@ -46,20 +46,16 @@ class Zone:
     is_start: bool = False
     is_end: bool = False
 
-    @property
     def entry_cost(self) -> int:
         """Turns needed to enter this zone: 2 for restricted, else 1."""
         return 2 if self.zone_type == "restricted" else 1
 
-    @property
     def is_blocked(self) -> bool:
         return self.zone_type == "blocked"
 
-    @property
     def is_priority(self) -> bool:
         return self.zone_type == "priority"
 
-    @property
     def is_hub(self) -> bool:
         return self.is_start or self.is_end
 
@@ -72,7 +68,6 @@ class Connection:
     zone_b: str
     max_link_capacity: int = 1
 
-    @property
     def key(self) -> tuple[str, str]:
         """Endpoint names sorted, so ``a-b`` and ``b-a`` share a key."""
         return (self.zone_a, self.zone_b) if self.zone_a < self.zone_b \
@@ -241,11 +236,10 @@ class MapParser:
                 line_num, f"{field_name} must be an integer, got {value!r}"
             ) from None
 
-    @classmethod
     def _parse_positive_int(
-        cls, value: str, line_num: int, field_name: str
+        self, value: str, line_num: int, field_name: str
     ) -> int:
-        number = cls._parse_int(value, line_num, field_name)
+        number = self._parse_int(value, line_num, field_name)
         if number < 1:
             raise ParseError(
                 line_num,
@@ -253,13 +247,12 @@ class MapParser:
             )
         return number
 
-    @classmethod
     def _metadata_positive_int(
-        cls, metadata: dict[str, str], key: str, line_num: int
+        self, metadata: dict[str, str], key: str, line_num: int
     ) -> int:
         """Read a capacity tag from metadata, defaulting to 1 when absent."""
         raw = metadata.get(key)
-        return cls._parse_positive_int(raw, line_num, key) if raw else 1
+        return self._parse_positive_int(raw, line_num, key) if raw else 1
 
     def _validate(self) -> None:
         """Check the rules that need the whole file to be read."""

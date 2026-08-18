@@ -39,7 +39,6 @@ class Drone:
     destination: str | None = None
     arrival_in: int = 0
 
-    @property
     def in_flight(self) -> bool:
         """True while the drone is crossing a connection."""
         return self.destination is not None
@@ -94,19 +93,17 @@ class Simulation:
         # capacity is never actually enforced.
         self._zone_load: dict[str, int] = {graph.start: nb_drones}
 
-    @property
     def delivered_count(self) -> int:
         """How many drones have reached the goal."""
         return sum(1 for drone in self.drones if self.is_delivered(drone))
 
-    @property
     def finished(self) -> bool:
         """True once every drone has reached the goal."""
-        return self.delivered_count == len(self.drones)
+        return self.delivered_count() == len(self.drones)
 
     def is_delivered(self, drone: Drone) -> bool:
         """True if a drone is sitting in the end hub."""
-        return not drone.in_flight and drone.zone == self.graph.end
+        return not drone.in_flight() and drone.zone == self.graph.end
 
     def step(self) -> TurnResult:
         """Advance the simulation by one turn.
@@ -128,7 +125,7 @@ class Simulation:
         grounded = sorted(
             (
                 drone for drone in self.drones
-                if not drone.in_flight and not self.is_delivered(drone)
+                if not drone.in_flight() and not self.is_delivered(drone)
             ),
             key=lambda drone: self.distances[drone.zone],
         )
@@ -146,10 +143,10 @@ class Simulation:
             if target is not None:
                 self._depart(drone, target, link_load, result)
 
-        if not result.moves and not self.finished:
+        if not result.moves and not self.finished():
             raise RoutingError(
                 f"deadlock on turn {self.turn}: "
-                f"{len(self.drones) - self.delivered_count} "
+                f"{len(self.drones) - self.delivered_count()} "
                 f"drones cannot move"
             )
         return result
@@ -158,7 +155,7 @@ class Simulation:
         """Play the simulation to completion, one :class:`TurnResult` per
         turn."""
         results: list[TurnResult] = []
-        while not self.finished:
+        while not self.finished():
             if self.turn >= self.MAX_TURNS:
                 raise RoutingError(
                     f"gave up after {self.MAX_TURNS} turns"
@@ -227,7 +224,7 @@ class Simulation:
         self._zone_load[origin] -= 1
         self._zone_load[target] = self._zone_load.get(target, 0) + 1
 
-        crossing_turns = self.graph.zone(target).entry_cost
+        crossing_turns = self.graph.zone(target).entry_cost()
         if crossing_turns == 1:
             drone.zone = target
             result.moves.append(f"D{drone.drone_id}-{target}")
@@ -241,7 +238,7 @@ class Simulation:
     def _has_room(self, zone_name: str) -> bool:
         """True if a zone is a hub (unlimited) or below its capacity."""
         zone = self.graph.zone(zone_name)
-        if zone.is_hub:
+        if zone.is_hub():
             return True
         return self._zone_load.get(zone_name, 0) < zone.max_drones
 
@@ -255,7 +252,7 @@ class Simulation:
         connection = self.graph.link(zone_a, zone_b)
         if connection is None:
             return False
-        used = link_load.get(connection.key, 0)
+        used = link_load.get(connection.key(), 0)
         return used < connection.max_link_capacity
 
     def _occupy_link(
@@ -267,4 +264,5 @@ class Simulation:
         """Record that one more drone is using a connection this turn."""
         connection = self.graph.link(zone_a, zone_b)
         if connection is not None:
-            link_load[connection.key] = link_load.get(connection.key, 0) + 1
+            key = connection.key()
+            link_load[key] = link_load.get(key, 0) + 1

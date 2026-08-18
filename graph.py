@@ -43,11 +43,11 @@ class Graph:
             # A link that touches a blocked zone can never be flown, so
             # it is left out of the graph rather than checked repeatedly
             # at every step of the simulation.
-            if zone_a.is_blocked or zone_b.is_blocked:
+            if zone_a.is_blocked() or zone_b.is_blocked():
                 continue
             self._neighbors[zone_a.name].append(zone_b.name)
             self._neighbors[zone_b.name].append(zone_a.name)
-            self._links[connection.key] = connection
+            self._links[connection.key()] = connection
 
     def neighbors(self, zone_name: str) -> list[str]:
         """Names of the zones directly reachable from a zone."""
@@ -72,7 +72,7 @@ class Graph:
             if distance > distances[current]:
                 continue  # A shorter route to `current` was already found.
 
-            step_cost = self.zones[current].entry_cost
+            step_cost = self.zones[current].entry_cost()
             new_distance = distance + step_cost
             for neighbor in self.neighbors(current):
                 known = distances.get(neighbor)
@@ -116,7 +116,7 @@ class Graph:
     ) -> tuple[int, bool]:
         """Sort key for picking a next hop: lowest cost first, priority
         zones breaking ties."""
-        return (distances[zone_name], not self.zones[zone_name].is_priority)
+        return (distances[zone_name], not self.zones[zone_name].is_priority())
 
     def zone(self, zone_name: str) -> Zone:
         """Look up a zone by name."""

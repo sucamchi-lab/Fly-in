@@ -46,7 +46,6 @@ class Mode(Enum):
     PAUSED = "paused"
     STEPPING = "stepping"  # one turn per key press
 
-    @property
     def label(self) -> str:
         """A short description for the side panel."""
         return {
@@ -155,13 +154,12 @@ class Visualizer:
         # keeps its spot instead of shuffling as others arrive.
         self.landed: dict[int, int] = {}
 
-    @property
     def idle(self) -> bool:
         """True when the run is over, or has not been started yet."""
         return (
             self.mode is Mode.READY
             or self.error is not None
-            or self.simulation.finished
+            or self.simulation.finished()
         )
 
     # --- Simulation driving ------------------------------------------
@@ -191,7 +189,7 @@ class Visualizer:
 
     def _toggle_play(self) -> None:
         """Handle SPACE: start, pause, resume, or take a single step."""
-        if self.simulation.finished or self.error is not None:
+        if self.simulation.finished() or self.error is not None:
             return  # The run is over; R replays it, SPACE does nothing.
         if self.mode is Mode.STEPPING:
             self._advance()
@@ -203,7 +201,7 @@ class Visualizer:
 
     def _toggle_stepping(self) -> None:
         """Handle S: switch between playing through and stepping."""
-        if self.simulation.finished or self.error is not None:
+        if self.simulation.finished() or self.error is not None:
             return
         self.mode = (
             Mode.PLAYING if self.mode is Mode.STEPPING else Mode.STEPPING
@@ -216,7 +214,7 @@ class Visualizer:
         self.progress = min(
             1.0, self.progress + elapsed * self.turns_per_second * 1.5
         )
-        if self.mode is Mode.PLAYING and not self.idle:
+        if self.mode is Mode.PLAYING and not self.idle():
             if self.progress >= 1.0:
                 self._advance()
 
@@ -356,7 +354,7 @@ class Visualizer:
         self._draw_panel()
         if self.mode is Mode.READY:
             self._draw_opening_card()
-        elif self.error is not None or self.simulation.finished:
+        elif self.error is not None or self.simulation.finished():
             self._draw_closing_card()
         pygame.display.flip()
 
@@ -386,7 +384,7 @@ class Visualizer:
             color = self.zone_color(zone)
             radius = int(self._zone_radius(zone))
 
-            if zone.is_blocked:
+            if zone.is_blocked():
                 # Hollow with a cross through it: unmistakably off limits.
                 pygame.draw.circle(self.screen, color, point, radius, 2)
                 for dx in (-1, 1):
@@ -408,7 +406,7 @@ class Visualizer:
                 self.TEXT,
                 centered=True,
             )
-            if not zone.is_hub and zone.max_drones > 1:
+            if not zone.is_hub() and zone.max_drones > 1:
                 self._blit(
                     f"[{zone.max_drones}]",
                     (position[0], position[1] - radius - 16),
@@ -457,8 +455,8 @@ class Visualizer:
         y += 40
         for text in (
             f"Turn: {self.simulation.turn}",
-            f"Delivered: {self.simulation.delivered_count}/{total}",
-            f"Mode: {self.mode.label}",
+            f"Delivered: {self.simulation.delivered_count()}/{total}",
+            f"Mode: {self.mode.label()}",
             f"Speed: {self.turns_per_second:.1f} turns/s",
         ):
             self._blit(text, (left + 20, y), self.TEXT, font=self.font_medium)
@@ -585,24 +583,22 @@ class Visualizer:
             y -= surface.get_height() / 2
         self.screen.blit(surface, (int(x), int(y)))
 
-    @classmethod
-    def zone_color(cls, zone: Zone) -> Rgb:
+    def zone_color(self, zone: Zone) -> Rgb:
         """Pick the colour to draw a zone in: an explicit ``color=`` from
         the map first, then start/goal colours, then the zone type's."""
         if zone.color:
-            return cls.rgb(zone.color)
+            return self.rgb(zone.color)
         if zone.is_start:
-            return cls.START
+            return self.START
         if zone.is_end:
-            return cls.END
-        return cls.ZONE_TYPE_COLORS.get(zone.zone_type, cls.FALLBACK)
+            return self.END
+        return self.ZONE_TYPE_COLORS.get(zone.zone_type, self.FALLBACK)
 
-    @classmethod
-    def rgb(cls, name: str) -> Rgb:
+    def rgb(self, name: str) -> Rgb:
         """Turn a colour name like 'red' into an RGB triple, falling
         back to grey for anything pygame doesn't recognise."""
         try:
             color = pygame.Color(name)
         except ValueError:
-            return cls.FALLBACK
+            return self.FALLBACK
         return (color.r, color.g, color.b)

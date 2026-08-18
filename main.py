@@ -30,7 +30,7 @@ from parser import MapParser, ParseError
 from simulation import RoutingError, Simulation, TurnResult
 
 
-class FlyInApp:
+class FlyIn:
     """Wires the parser, the graph, the simulation and the display together."""
 
     def __init__(self, argv: list[str] | None = None) -> None:
@@ -139,4 +139,4 @@ class FlyInApp:
 
 
 if __name__ == "__main__":
-    sys.exit(FlyInApp().run())
+    sys.exit(FlyIn().run())
