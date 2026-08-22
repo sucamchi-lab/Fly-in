@@ -54,9 +54,8 @@ class Drone:
 
 @dataclass
 class TurnResult:
-    """What happened during one turn: its number, and each drone's move."""
+    """What happened during one turn: each drone's move."""
 
-    turn: int
     moves: list[str] = field(default_factory=list)
 
     def __str__(self) -> str:
@@ -114,7 +113,7 @@ class Simulation:
         zone frees its slot in time for the drone behind it.
         """
         self.turn += 1
-        result = TurnResult(turn=self.turn)
+        result = TurnResult()
         # Rebuilt every turn: a link is only busy while it is being flown.
         link_load: dict[tuple[str, str], int] = {}
 

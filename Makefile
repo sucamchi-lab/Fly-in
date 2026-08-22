@@ -3,11 +3,9 @@ PYTHON  = $(VENV)/bin/python3
 PIP     = $(VENV)/bin/pip
 FLAKE8  = $(VENV)/bin/flake8
 MYPY    = $(VENV)/bin/mypy
-MYPY_FLAGS = --warn-return-any --warn-unused-ignores --ignore-missing-imports \
-             --disallow-untyped-defs --check-untyped-defs
 
 # Override on the command line, e.g. `make run MAP=maps/hard/02_capacity_hell.txt`
-MAP = maps/easy/01_linear_path.txt
+MAP = maps/easy/02_simple_fork.txt
 
 install:
 	@test -d $(VENV) || python3 -m venv $(VENV)
@@ -24,7 +22,8 @@ debug:
 
 lint:
 	$(FLAKE8) .
-	$(MYPY) . $(MYPY_FLAGS)
+	$(MYPY) . --warn-return-any --warn-unused-ignores --ignore-missing-imports \
+             --disallow-untyped-defs --check-untyped-defs
 
 lint-strict:
 	$(FLAKE8) .

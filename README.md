@@ -1,6 +1,6 @@
 *This project has been created as part of the 42 curriculum by scamlett.*
 
-# Fly-in — drone routing simulation
+# Fly-in — drone routing simulator
 
 ## Description
 
@@ -23,50 +23,10 @@ run can also be watched in a pygame window.
 
 ```bash
 make install                                     # create venv, install deps
-make run MAP=maps/easy/01_linear_path.txt        # with the pygame window
-make run-no-gui MAP=maps/hard/02_capacity_hell.txt   # text output only for testing
+make run MAP=maps/easy/01_linear_path.txt        # change the map to try different scenarios
+make run-no-gui                                  # text output only for testing
 ```
 
-`maps/tests/` holds small single-purpose maps for checking one rule at a
-time by hand — a blocked zone, a restricted zone, a capacity split, a
-map where start and goal are directly connected, and so on.
-
-Without a `MAP=`, the easy linear map is used. The program can also be
-called directly:
-
-```bash
-python3 main.py maps/medium/02_circular_loop.txt --no-gui
-```
-
-Turn lines go to **standard output** and nothing else does, so the result
-can be piped or diffed. The summary goes to standard error, where it is
-still visible in a terminal:
-
-```
-5 drones delivered in 7 turns (22 moves, 3.1 per turn, 4.4 per drone)
-cheapest single-drone route (4 turns): start -> fast_junction -> fast_path -> merge_point -> goal
-```
-
-The second line is the floor the fleet is working against — one drone
-alone, with the map to itself. The gap between it and the turn count is
-entirely the cost of congestion.
-
-### Visualizer controls
-
-The window opens **waiting**, showing the map and a card offering the two
-ways to watch. Nothing moves until you pick one.
-
-| Key       | Action                                       |
-|-----------|----------------------------------------------|
-| `SPACE`   | Play / pause, or advance one turn in step mode |
-| `S`       | Switch between playing through and stepping   |
-| `R`       | Restart the run from the beginning            |
-| `↑` / `↓` | Faster / slower (0.5–20 turns per second)     |
-| `ESC`/`Q` | Close the window                              |
-
-When the last drone lands, the finished layout stays on screen. There is
-no prompt to quit: press `R` to watch it again, or close the window when
-you are done looking at it.
 
 ## Algorithm and implementation strategy
 
@@ -76,20 +36,17 @@ The obvious approach is to compute a route for each drone and then walk
 each drone along it. That turns out to be both slower and worse: routes
 computed in advance cannot know about congestion that has not happened
 yet, so drones have to be pulled off their route and re-planned whenever
-they meet traffic, and the bookkeeping for that is where bugs live.
+they meet traffic. 
 
-This implementation inverts it. **Dijkstra's algorithm is run once,
-backwards from the goal**, producing a table of the remaining cost in
+The subject's rules about drones moving out of a zone freeing up capacity for that same turn are also hard to implement in a forward search, because the search has to know about the future state of the zone before it can decide whether a drone can enter it.
+
+This implementation inverts it. Dijkstra's algorithm is run once,
+**backwards** from the goal, producing a table of the remaining cost in
 turns from every zone to the goal:
 
 ```
 distances = {goal: 0, gate: 1, junction: 2, start: 3, ...}
 ```
-
-Because the graph is undirected and an edge's weight depends only on
-which zone you are *entering*, searching backwards is exactly as valid as
-searching forwards — the cost of the step `neighbour → current` is simply
-the entry cost of `current`.
 
 Every drone then routes itself, one step at a time: **move to whichever
 neighbouring zone has the lowest remaining cost and is not currently
@@ -97,9 +54,8 @@ full.** No drone owns a route, so congestion needs no replanning — a
 drone whose preferred zone is full simply takes the next best one, or
 waits, and picks up again from wherever it ends up.
 
-Priority zones are honoured as a tie-break: at equal remaining cost, a
-priority zone is chosen over a normal one. Blocked zones are dropped from
-the graph when it is built, so no route can accidentally use one.
+At equal remaining cost, a priority zone is chosen over a normal one. 
+Blocked zones are dropped from the graph when it is built.
 
 ### Why this cannot loop or deadlock
 
@@ -123,44 +79,17 @@ that behaviour automatic rather than something that has to be
 special-cased.
 
 Because deadlock is impossible, a turn in which nothing at all moves
-means something is wrong, and the engine raises an error rather than
-spinning. The same goes for an unreachable goal, which is detected up
-front from the distance table.
+means something is wrong, and the engine raises an error.
+The same goes for an unreachable goal, which is detected by Dijkstra's 
+search returning no path from the start.
 
-### Capacity, and the restricted-zone guarantee
-
-Two kinds of capacity are tracked, and they behave differently:
-
-*   **Zone occupancy** is a running count carried across turns.
-*   **Connection occupancy** is rebuilt every turn, because a connection
-    is only busy while it is being crossed.
-
-The subtle case is the restricted zone. The subject says a drone crossing
-toward one *must* arrive on schedule and may not wait on the connection.
-So when a drone sets off, it **reserves its destination slot
-immediately** — two turns before it will actually be standing there. That
-one decision is what makes the guarantee hold: the space cannot be given
-to anyone else in the meantime, so the landing never needs a capacity
-check and can never fail.
-
-## Project structure
-
-| File | Responsibility |
-|------|----------------|
-| `main.py` | `FlyIn` — command line, output, error reporting |
-| `parser.py` | `MapParser` and the `Zone` / `Connection` / `MapData` types |
-| `graph.py` | `Graph` — adjacency, Dijkstra, route extraction |
-| `simulation.py` | `Simulation`, `Drone`, `TurnResult` — the turn engine |
-| `visualizer.py` | `Visualizer` — the pygame window |
-
-Every module is built around a class, and the data types are dataclasses,
-`Zone` and `Connection` being frozen since a map does not change once
-read.
 
 ## Visual representation
 
-The pygame window draws the network from the coordinates in the map file
-and animates the fleet across it:
+The Pygame window draws the network from the coordinates in the map file
+and animates the fleet across it.
+The visualizer is not required to run the simulation, but it is highly recommended 
+to see the algorithm in action and enhance the user's understanding of the simulation:
 
 *   **Zones** are circles, coloured by the map's `color=` tag or, failing
     that, by zone type (blue normal, orange restricted, cyan priority,
@@ -171,33 +100,36 @@ and animates the fleet across it:
     one drone at a time.
 *   **Drones** are numbered dots that slide between zones rather than
     jumping, and are fanned out so a stack of them in one zone stays
-    countable. Each carries a dark rim so it stays legible whatever
-    colour the zone beneath it happens to be. A drone crossing toward a
-    restricted zone is drawn **out on the connection itself** — the
-    two-turn cost becomes something you watch happen instead of
-    something you infer from the text.
+    countable.
 *   **Delivered drones stay in the goal.** They are not removed on
     arrival; they park inside the goal circle, dimmed to show they are
-    at rest, each keeping the slot it landed in. The goal grows to hold
-    them, packing them on a golden-angle spiral so they fill it evenly
-    from the middle out. The picture therefore accounts for every drone
-    at every moment, and the goal visibly fills as the run proceeds.
+    at rest, each keeping the slot it landed in. Start and goal are drawn
+    larger than an ordinary zone so they have room for the fleet, and the
+    parked drones sit on a golden-angle spiral that fills the circle
+    evenly from the middle out. The picture therefore accounts for every
+    drone at every moment, and the goal visibly fills as the run proceeds.
 *   **The side panel** carries the turn counter, the delivered count, the
-    playback mode and speed, the controls, a legend for the zone types
-    and a list of the movements in the current turn.
+    playback mode and speed, the controls and a list of the movements in
+    the current turn.
 *   **Playback starts on your terms.** The window opens with the map laid
     out and nothing moving, offering a choice between playing through and
-    stepping one turn at a time — so the shape of the network and the
-    starting positions can be read before drones begin covering them up.
-    Stepping is what makes a congested map legible: you can stop on the
-    turn a queue forms and see which constraint caused it. Speed is
-    adjustable while playing, and `R` restarts the run at any point.
-*   **The end is not a dead end.** When the last drone lands the finished
-    layout simply stays up, with no prompt to quit — you can study it for
-    as long as you like, replay the run, or close the window when you are
-    ready.
+    stepping one turn at a time. 
+    Speed is adjustable while playing, and `R` restarts the run at any point.
 
-## Example
+
+### Visualizer controls
+
+
+| Key       | Action                                       |
+|-----------|----------------------------------------------|
+| `SPACE`   | Play / pause / step                           |
+| `S`       | Switch between automatic and stepping         |
+| `R`       | Restart the run from the beginning            |
+| `↑` / `↓` | Faster / slower                               |
+| `ESC`/`Q` | Close the window                              |
+
+
+## Example without GUI
 
 Input — `maps/easy/01_linear_path.txt`:
 
@@ -214,25 +146,13 @@ connection: waypoint1-waypoint2
 connection: waypoint2-goal
 ```
 
-Output — `python3 main.py maps/easy/01_linear_path.txt --no-gui`:
+Output:
 
 ```
 D1-waypoint1
 D1-waypoint2 D2-waypoint1
-D1-goal D2-waypoint2
-D2-goal
-```
-
-D2 sets off one turn behind D1 because `waypoint1` holds a single drone,
-and moves into it on the very turn D1 vacates it.
-
-A map with a restricted zone shows the two-turn crossing explicitly —
-the drone is named on the *connection* first, then in the zone:
-
-```
-D1-start-slow_zone     # turn 1: out on the connection
-D1-slow_zone           # turn 2: landed
-D1-goal                # turn 3
+D1-goal D2-waypoint2 
+D2-goal 
 ```
 
 ## Performance
@@ -252,11 +172,6 @@ D1-goal                # turn 3
 | Challenger — the impossible dream | 25 | **43** | ≤ 45 |
 
 
-Every one of these runs was verified against the subject's rules —
-zone and connection capacities, the two-turn restricted crossing, blocked
-zones, and every drone actually arriving — by replaying the printed
-output rather than by trusting the engine's own counters.
-
 ## Resources
 
 *   [Dijkstra's algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)
@@ -265,9 +180,10 @@ output rather than by trusting the engine's own counters.
     heap used as Dijkstra's priority queue.
 *   [Python `dataclasses`](https://docs.python.org/3/library/dataclasses.html)
     — the value types for zones, connections and turn results.
+*   [Python `decorators`](https://docs.python.org/3/glossary.html#term-decorator)
 *   [pygame documentation](https://www.pygame.org/docs/) 
 
 ### AI usage
 
-AI was used in a responsible manner as a tutor and to assist in algorithm generation, error handling, unit testing and README.md formatting. All code has been fully reviewed and is understood by the author.
+AI was used in a responsible manner as a tutor and to assist in algorithm implementation, error handling and unit testing. All code is understood by the author.
 

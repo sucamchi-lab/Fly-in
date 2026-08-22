@@ -1,19 +1,4 @@
-"""Parsing of Fly-in map files.
-
-A map file describes the drone network: how many drones to route, the
-zones (nodes) they fly through, and the connections (edges) between
-those zones.
-
-The file format is::
-
-    nb_drones: 5
-
-    start_hub: hub 0 0 [color=green]
-    end_hub:   goal 10 10 [color=yellow]
-    hub:       roof1 3 4 [zone=restricted color=red]
-    connection: hub-roof1
-    connection: hub-roof2 [max_link_capacity=2]
-
+"""Parsing of map txt files.
 Lines starting with # and blank lines are ignored.
 """
 
@@ -29,8 +14,6 @@ class ParseError(Exception):
         super().__init__(
             f"line {line_num}: {message}" if line_num else message
         )
-        self.line_num = line_num
-        self.message = message
 
 
 @dataclass(frozen=True)
@@ -70,8 +53,9 @@ class Connection:
 
     def key(self) -> tuple[str, str]:
         """Endpoint names sorted, so ``a-b`` and ``b-a`` share a key."""
-        return (self.zone_a, self.zone_b) if self.zone_a < self.zone_b \
-            else (self.zone_b, self.zone_a)
+        if self.zone_a < self.zone_b:
+            return (self.zone_a, self.zone_b)
+        return (self.zone_b, self.zone_a)
 
 
 @dataclass
@@ -86,24 +70,14 @@ class MapData:
 
 
 class MapParser:
-    """Reads a map file, line by line, into a :class:`MapData`.
-
-    Typical use::
-
-        map_data = MapParser("maps/easy/01_linear_path.txt").parse()
-    """
+    """Reads a map file, line by line, into a MapData object."""
 
     def __init__(self, filepath: str) -> None:
         self.filepath = filepath
         self._data = MapData()
 
     def parse(self) -> MapData:
-        """Read the file and return its contents.
-
-        Raises:
-            ParseError: If the file breaks the format.
-            OSError: If the file cannot be read.
-        """
+        """Read the file and return its contents."""
         with open(self.filepath, "r", encoding="utf-8") as handle:
             lines = handle.readlines()
 
@@ -233,7 +207,7 @@ class MapParser:
             return int(value)
         except ValueError:
             raise ParseError(
-                line_num, f"{field_name} must be an integer, got {value!r}"
+                line_num, f"{field_name} must be an integer"
             ) from None
 
     def _parse_positive_int(
@@ -243,7 +217,7 @@ class MapParser:
         if number < 1:
             raise ParseError(
                 line_num,
-                f"{field_name} must be a positive integer, got {value!r}",
+                f"{field_name} must be a positive integer",
             )
         return number
 

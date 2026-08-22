@@ -2,58 +2,36 @@
 
 The network is drawn from the zone coordinates in the map file: zones
 are circles coloured by type, connections are lines, and drones are
-small numbered dots that slide from zone to zone as the turns advance. A
-drone crossing toward a restricted zone is drawn out on the connection
-itself, so the two-turn cost is something you can see rather than
-something you have to infer from the text output.
+small numbered dots that slide from zone to zone as the turns advance.
 
-The window opens **waiting**, on a card that offers the two ways to
-watch: play it through, or step one turn at a time. Nothing moves until
-that choice is made, so the starting layout can be read first. When the
-last drone lands, the run stays on screen and can be replayed as often
-as you like; the window closes when you decide to close it.
-
-A side panel carries the turn counter, the delivery count and a legend,
-so the map can be read without cross-referencing the source file.
-
-Controls:
-    SPACE       Play / pause, or advance one turn in step mode
-    S           Switch between playing and stepping
-    R           Restart the run from the beginning
-    UP / DOWN   Faster / slower
-    ESC or Q    Close the window
+A side panel carries the turn counter, the delivery count, the playback
+mode and speed, and the moves made in the current turn.
 """
 
 from __future__ import annotations
 
 import math
 from enum import Enum
-
-import pygame
+from os import environ
 
 from graph import Graph
 from parser import Zone
 from simulation import Drone, RoutingError, Simulation, TurnResult
+
+# Remove pygame message
+environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
+import pygame  # noqa: E402
+
 
 Rgb = tuple[int, int, int]
 
 
 class Mode(Enum):
     """What the window is doing with the simulation right now."""
-
     READY = "ready"  # opened, waiting for the viewer to choose how to watch
     PLAYING = "playing"
     PAUSED = "paused"
-    STEPPING = "stepping"  # one turn per key press
-
-    def label(self) -> str:
-        """A short description for the side panel."""
-        return {
-            Mode.READY: "ready",
-            Mode.PLAYING: "playing",
-            Mode.PAUSED: "paused",
-            Mode.STEPPING: "step-by-step",
-        }[self]
+    STEPPING = "step-by-step"  # one turn per key press
 
 
 class Visualizer:
@@ -63,20 +41,28 @@ class Visualizer:
     on demand instead of being tied to one played-out instance.
     """
 
+    #: Every pixel size in this class is written for a window this tall.
+    #: On a bigger screen they are all multiplied up together by px(), so
+    #: fullscreen means larger zones, drones and text — not more empty
+    #: space around the same small drawing.
+    DESIGN_HEIGHT = 750
     PANEL_WIDTH = 280
     ZONE_RADIUS = 18
-    DRONE_RADIUS = 6
-    PADDING = 60
+    HUB_RADIUS = 40  #: Start and goal are drawn larger than an ordinary zone
+    DRONE_RADIUS = 8
+    EDGE_PADDING = 60
     FPS = 60
 
-    #: How far the goal is allowed to swell as it fills with drones.
-    MAX_GOAL_RADIUS = 62
-    #: Ideal gap between parked drones, reduced when the goal gets crowded.
-    PARKED_SPACING = 9.0
-    #: Turns of a spiral that spreads points evenly over a disc, so parked
-    #: drones fill the goal from the middle outwards without clumping.
-    GOLDEN_ANGLE = 2.399963
+    #: Playback speed in turns per second.
+    START_SPEED = 1.0
+    MIN_SPEED = 0.5
+    MAX_SPEED = 4.0
+    SPEED_STEP = 0.5
 
+    PARKED_SPACING = 9.0  # Gap between drones parked in the goal.
+    GOLDEN_ANGLE = 2.4  # Angle in radians between successive parked drones
+
+    # Colours used throughout the window.
     BACKGROUND: Rgb = (20, 20, 40)
     PANEL: Rgb = (30, 30, 50)
     CARD: Rgb = (44, 44, 70)
@@ -85,7 +71,6 @@ class Visualizer:
     ACCENT: Rgb = (255, 255, 120)
     LINK: Rgb = (80, 80, 120)
     DRONE: Rgb = (255, 220, 0)
-    #: Parked in the goal — still clearly a drone, but visibly at rest.
     DELIVERED: Rgb = (196, 168, 40)
     START: Rgb = (50, 200, 50)
     END: Rgb = (255, 80, 80)
@@ -99,31 +84,32 @@ class Visualizer:
         "blocked": (128, 128, 128),
     }
 
-    def __init__(
-        self,
-        graph: Graph,
-        nb_drones: int,
-        width: int = 1100,
-        height: int = 750,
-    ) -> None:
-        """Open the window and lay the map out on screen."""
+    def __init__(self, graph: Graph, nb_drones: int) -> None:
+        """Open a fullscreen window and lay the map out on screen."""
         self.graph = graph
         self.nb_drones = nb_drones
         self.running = True
-        self.turns_per_second = 2.0
+        self.turns_per_second = self.START_SPEED
 
         pygame.init()
-        self.screen = pygame.display.set_mode((width, height))
+        self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         pygame.display.set_caption("Fly-in — drone routing simulation")
+        # Never below 1.0: on a screen shorter than the design window the
+        # drawing would otherwise shrink instead of merely not growing.
+        self.scale = max(1.0, self.screen.get_height() / self.DESIGN_HEIGHT)
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.Font(None, 18)
-        self.font_medium = pygame.font.Font(None, 22)
-        self.font_large = pygame.font.Font(None, 28)
+        self.font = pygame.font.Font(None, self.px(18))
+        self.font_medium = pygame.font.Font(None, self.px(22))
+        self.font_large = pygame.font.Font(None, self.px(28))
 
         self.positions = self._layout()
         # Everything to do with a particular run lives in restart(), so
         # that starting over needs no separate teardown.
         self.restart()
+
+    def px(self, size: float) -> int:
+        """Scale a size written for the design window up to this screen."""
+        return int(size * self.scale)
 
     def run(self) -> None:
         """Show the window until the viewer closes it."""
@@ -141,7 +127,7 @@ class Visualizer:
         matter of calling this again.
         """
         self.simulation = Simulation(self.graph, self.nb_drones)
-        self.history: list[TurnResult] = []
+        self.last_turn: TurnResult | None = None
         self.error: str | None = None
         self.mode = Mode.READY
         # Drone dots are interpolated between where they were at the end
@@ -179,9 +165,13 @@ class Visualizer:
         elif key == pygame.K_r:
             self.restart()
         elif key == pygame.K_UP:
-            self.turns_per_second = min(20.0, self.turns_per_second + 1)
+            self.turns_per_second = min(
+                self.MAX_SPEED, self.turns_per_second + self.SPEED_STEP
+            )
         elif key == pygame.K_DOWN:
-            self.turns_per_second = max(0.5, self.turns_per_second - 1)
+            self.turns_per_second = max(
+                self.MIN_SPEED, self.turns_per_second - self.SPEED_STEP
+            )
         elif key == pygame.K_SPACE:
             self._toggle_play()
         elif key == pygame.K_s:
@@ -230,7 +220,7 @@ class Visualizer:
             for drone in self.simulation.drones
         }
         try:
-            self.history.append(self.simulation.step())
+            self.last_turn = self.simulation.step()
         except RoutingError as failure:
             self.error = str(failure)
             return
@@ -260,11 +250,14 @@ class Visualizer:
         # clamping to 1 keeps the scale finite.
         span_x, span_y = max(max_x - min_x, 1), max(max_y - min_y, 1)
 
-        width = self.screen.get_width() - self.PANEL_WIDTH - 2 * self.PADDING
-        height = self.screen.get_height() - 2 * self.PADDING
+        padding = self.px(self.EDGE_PADDING)
+        width = (
+            self.screen.get_width() - self.px(self.PANEL_WIDTH) - 2 * padding
+        )
+        height = self.screen.get_height() - 2 * padding
         scale = min(width / span_x, height / span_y)
-        offset_x = self.PADDING + (width - span_x * scale) / 2
-        offset_y = self.PADDING + (height - span_y * scale) / 2
+        offset_x = padding + (width - span_x * scale) / 2
+        offset_y = padding + (height - span_y * scale) / 2
 
         return {
             zone.name: (
@@ -291,9 +284,10 @@ class Visualizer:
             return ((here[0] + there[0]) / 2, (here[1] + there[1]) / 2)
 
         slot = drone.drone_id - 1
+        step = self.px(7)
         return (
-            here[0] + (slot % 4) * 7 - 10,
-            here[1] + (slot // 4) * 7 - 7,
+            here[0] + (slot % 4) * step - self.px(10),
+            here[1] + (slot // 4) * step - self.px(7),
         )
 
     def _parked_point(self, slot: int) -> tuple[float, float]:
@@ -314,25 +308,18 @@ class Visualizer:
     def _parked_spacing(self) -> float:
         """Gap between parked drones, tightened when the goal fills up."""
         outermost = math.sqrt(max(self.nb_drones - 1, 1))
-        room = (self.MAX_GOAL_RADIUS - self.DRONE_RADIUS) / outermost
-        return min(self.PARKED_SPACING, room)
-
-    def _parked_radius(self) -> float:
-        """Radius in pixels covering every drone parked in the goal so far."""
-        if not self.landed:
-            return 0.0
-        furthest = math.sqrt(len(self.landed) - 1)
-        return self._parked_spacing() * furthest + self.DRONE_RADIUS
+        # Squeeze the spiral until the whole fleet fits the hub circle,
+        # since that circle no longer grows to meet it.
+        room = (
+            self.px(self.HUB_RADIUS) - self.px(self.DRONE_RADIUS)
+        ) / outermost
+        return min(self.px(self.PARKED_SPACING), room)
 
     def _zone_radius(self, zone: Zone) -> float:
-        """The radius to draw a zone at.
-
-        The goal swells as drones land in it, so the delivered fleet
-        always sits inside the circle instead of spilling over its edge.
-        """
-        if not zone.is_end:
-            return float(self.ZONE_RADIUS)
-        return max(float(self.ZONE_RADIUS), self._parked_radius() + 4)
+        """The radius to draw a zone at: hubs are bigger than the rest."""
+        if zone.is_hub():
+            return float(self.px(self.HUB_RADIUS))
+        return float(self.px(self.ZONE_RADIUS))
 
     def _animated_point(self, drone: Drone) -> tuple[float, float]:
         """A drone's position this frame, interpolated toward its target."""
@@ -365,11 +352,16 @@ class Visualizer:
             end = self.positions.get(connection.zone_b)
             if start is None or end is None:
                 continue
-            pygame.draw.line(self.screen, self.LINK, start, end, 2)
+            pygame.draw.line(
+                self.screen, self.LINK, start, end, self.px(2)
+            )
             if connection.max_link_capacity > 1:
                 self._blit(
                     f"x{connection.max_link_capacity}",
-                    ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2 - 12),
+                    (
+                        (start[0] + end[0]) / 2,
+                        (start[1] + end[1]) / 2 - self.px(12),
+                    ),
                     self.MUTED,
                     centered=True,
                 )
@@ -386,30 +378,33 @@ class Visualizer:
 
             if zone.is_blocked():
                 # Hollow with a cross through it: unmistakably off limits.
-                pygame.draw.circle(self.screen, color, point, radius, 2)
+                pygame.draw.circle(
+                    self.screen, color, point, radius, self.px(2)
+                )
+                arm = self.px(6)
                 for dx in (-1, 1):
                     pygame.draw.line(
                         self.screen, color,
-                        (point[0] - 6 * dx, point[1] - 6),
-                        (point[0] + 6 * dx, point[1] + 6),
-                        2,
+                        (point[0] - arm * dx, point[1] - arm),
+                        (point[0] + arm * dx, point[1] + arm),
+                        self.px(2),
                     )
             else:
                 pygame.draw.circle(self.screen, color, point, radius)
                 pygame.draw.circle(
-                    self.screen, (255, 255, 255), point, radius, 1
+                    self.screen, (255, 255, 255), point, radius, self.px(1)
                 )
 
             self._blit(
                 name,
-                (position[0], position[1] + radius + 5),
+                (position[0], position[1] + radius + self.px(5)),
                 self.TEXT,
                 centered=True,
             )
             if not zone.is_hub() and zone.max_drones > 1:
                 self._blit(
                     f"[{zone.max_drones}]",
-                    (position[0], position[1] - radius - 16),
+                    (position[0], position[1] - radius - self.px(16)),
                     (200, 200, 100),
                     centered=True,
                 )
@@ -418,7 +413,7 @@ class Visualizer:
         """Draw every drone as a numbered dot, including delivered ones
         parked inside the goal."""
         parked_radius = int(
-            min(self.DRONE_RADIUS, self._parked_spacing() * 0.6)
+            min(self.px(self.DRONE_RADIUS), self._parked_spacing() * 0.6)
         )
         for drone in self.simulation.drones:
             x, y = self._animated_point(drone)
@@ -428,41 +423,47 @@ class Visualizer:
             # sized to fit their slot however crowded the goal gets.
             delivered = drone.drone_id in self.landed
             color = self.DELIVERED if delivered else self.DRONE
-            radius = parked_radius if delivered else self.DRONE_RADIUS
+            radius = (
+                parked_radius if delivered else self.px(self.DRONE_RADIUS)
+            )
 
             pygame.draw.circle(self.screen, color, point, radius)
             # A dark rim keeps a drone legible whatever colour the zone
             # underneath it happens to be — a yellow drone parked in a
             # gold goal would otherwise vanish into it.
-            pygame.draw.circle(self.screen, self.BACKGROUND, point, radius, 1)
-            if radius >= 5:
+            pygame.draw.circle(
+                self.screen, self.BACKGROUND, point, radius, self.px(1)
+            )
+            if radius >= self.px(5):
                 self._blit(
                     str(drone.drone_id), (x, y), (0, 0, 0), centered=True
                 )
 
     def _draw_panel(self) -> None:
-        """Draw the side panel: status, controls and legend."""
-        left = self.screen.get_width() - self.PANEL_WIDTH
+        """Draw the side panel: status, controls and the current turn."""
+        panel_width = self.px(self.PANEL_WIDTH)
+        left = self.screen.get_width() - panel_width
         pygame.draw.rect(
             self.screen,
             self.PANEL,
-            (left, 0, self.PANEL_WIDTH, self.screen.get_height()),
+            (left, 0, panel_width, self.screen.get_height()),
         )
 
         total = len(self.simulation.drones)
-        y = 20
-        self._blit("Fly-in", (left + 20, y), self.TEXT, font=self.font_large)
-        y += 40
+        indent = left + self.px(20)
+        y = self.px(20)
+        self._blit("Fly-in", (indent, y), self.TEXT, font=self.font_large)
+        y += self.px(40)
         for text in (
             f"Turn: {self.simulation.turn}",
             f"Delivered: {self.simulation.delivered_count()}/{total}",
-            f"Mode: {self.mode.label()}",
+            f"Mode: {self.mode.value}",
             f"Speed: {self.turns_per_second:.1f} turns/s",
         ):
-            self._blit(text, (left + 20, y), self.TEXT, font=self.font_medium)
-            y += 26
+            self._blit(text, (indent, y), self.TEXT, font=self.font_medium)
+            y += self.px(26)
 
-        y += 10
+        y += self.px(10)
         for text in (
             "SPACE  play / pause / step",
             "S      play or step mode",
@@ -470,35 +471,18 @@ class Visualizer:
             "UP/DN  speed",
             "ESC    close",
         ):
-            self._blit(text, (left + 20, y), self.MUTED)
-            y += 18
+            self._blit(text, (indent, y), self.MUTED)
+            y += self.px(18)
 
-        y += 12
-        self._blit("Legend", (left + 20, y), self.TEXT, font=self.font_medium)
-        y += 24
-        legend: list[tuple[str, Rgb]] = [
-            ("normal — 1 turn", self.ZONE_TYPE_COLORS["normal"]),
-            ("restricted — 2 turns", self.ZONE_TYPE_COLORS["restricted"]),
-            ("priority — preferred", self.ZONE_TYPE_COLORS["priority"]),
-            ("blocked — no entry", self.ZONE_TYPE_COLORS["blocked"]),
-            ("start", self.START),
-            ("goal", self.END),
-            ("drone", self.DRONE),
-        ]
-        for label, color in legend:
-            pygame.draw.circle(self.screen, color, (left + 28, y + 6), 6)
-            self._blit(label, (left + 42, y), self.MUTED)
-            y += 18
-
-        if self.history:
-            y += 12
+        if self.last_turn is not None:
+            y += self.px(12)
             self._blit(
-                "This turn", (left + 20, y), self.TEXT, font=self.font_medium
+                "This turn", (indent, y), self.TEXT, font=self.font_medium
             )
-            y += 24
-            for move in self.history[-1].moves[:12]:
-                self._blit(move, (left + 20, y), (200, 200, 150))
-                y += 16
+            y += self.px(24)
+            for move in self.last_turn.moves[:12]:
+                self._blit(move, (indent, y), (200, 200, 150))
+                y += self.px(16)
 
     def _draw_opening_card(self) -> None:
         """Offer the two ways to watch, before anything has moved."""
@@ -530,17 +514,19 @@ class Visualizer:
     ) -> None:
         """Draw a centred card over the map: a headline, then a list of
         ``(key, what it does)`` choices underneath."""
-        line_height = 24
-        widths = [self.font_large.size(headline)[0] + 60]
+        line_height = self.px(24)
+        widths = [self.font_large.size(headline)[0] + self.px(60)]
         widths += [
-            self.font_medium.size(f"{key}   {text}")[0] + 90
+            self.font_medium.size(f"{key}   {text}")[0] + self.px(90)
             for key, text in choices
         ]
-        centre_x = (self.screen.get_width() - self.PANEL_WIDTH) / 2
+        centre_x = (
+            self.screen.get_width() - self.px(self.PANEL_WIDTH)
+        ) / 2
         # Never wider than the map area, so a long failure message stays
         # inside the window instead of running under the side panel.
-        width = min(max(widths), centre_x * 2 - 40)
-        height = 70 + line_height * len(choices)
+        width = min(max(widths), centre_x * 2 - self.px(40))
+        height = self.px(70) + line_height * len(choices)
         left = centre_x - width / 2
         top = self.screen.get_height() / 2 - height / 2
 
@@ -548,20 +534,21 @@ class Visualizer:
         card.fill((*self.CARD, 240))
         self.screen.blit(card, (left, top))
         pygame.draw.rect(
-            self.screen, self.LINK, (left, top, width, height), 1
+            self.screen, self.LINK, (left, top, width, height), self.px(1)
         )
 
         self._blit(
-            headline, (centre_x, top + 26), color,
+            headline, (centre_x, top + self.px(26)), color,
             font=self.font_large, centered=True,
         )
-        y = top + 56
+        y = top + self.px(56)
         for key, description in choices:
             self._blit(
-                key, (left + 28, y), self.ACCENT, font=self.font_medium
+                key, (left + self.px(28), y), self.ACCENT,
+                font=self.font_medium,
             )
             self._blit(
-                description, (left + 92, y), self.MUTED,
+                description, (left + self.px(92), y), self.MUTED,
                 font=self.font_medium,
             )
             y += line_height

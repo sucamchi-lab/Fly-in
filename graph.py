@@ -82,35 +82,6 @@ class Graph:
 
         return distances
 
-    def shortest_path(
-        self, start: str, distances: dict[str, int]
-    ) -> list[str] | None:
-        """Walk from a zone to the goal, always stepping to the closest
-        neighbour. Priority zones win ties. Returns None if unreachable.
-
-        Used for reporting and the visualizer's route hint; the actual
-        simulation decides one step at a time so it can react to traffic.
-        """
-        if start not in distances:
-            return None
-
-        path = [start]
-        while path[-1] != self.end:
-            current = path[-1]
-            closer = [
-                n for n in self.neighbors(current)
-                if distances.get(n, distances[current]) < distances[current]
-            ]
-            # A zone with a finite distance always has a neighbour closer
-            # to the goal, so this is a guard against a corrupt table
-            # rather than an expected outcome.
-            if not closer:
-                return None
-            path.append(
-                min(closer, key=lambda n: self.route_rank(n, distances))
-            )
-        return path
-
     def route_rank(
         self, zone_name: str, distances: dict[str, int]
     ) -> tuple[int, bool]:
