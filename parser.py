@@ -2,8 +2,6 @@
 Lines starting with # and blank lines are ignored.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 
 

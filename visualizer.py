@@ -8,8 +8,6 @@ A side panel carries the turn counter, the delivery count, the playback
 mode and speed, and the moves made in the current turn.
 """
 
-from __future__ import annotations
-
 import math
 from enum import Enum
 from os import environ
@@ -43,7 +41,7 @@ class Visualizer:
 
     #: Every pixel size in this class is written for a window this tall.
     #: On a bigger screen they are all multiplied up together by px(), so
-    #: fullscreen means larger zones, drones and text — not more empty
+    #: fullscreen means larger zones, drones and text : not more empty
     #: space around the same small drawing.
     DESIGN_HEIGHT = 750
     PANEL_WIDTH = 280
@@ -93,7 +91,7 @@ class Visualizer:
 
         pygame.init()
         self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-        pygame.display.set_caption("Fly-in — drone routing simulation")
+        pygame.display.set_caption("Fly-in : drone routing simulation")
         # Never below 1.0: on a screen shorter than the design window the
         # drawing would otherwise shrink instead of merely not growing.
         self.scale = max(1.0, self.screen.get_height() / self.DESIGN_HEIGHT)
@@ -429,7 +427,7 @@ class Visualizer:
 
             pygame.draw.circle(self.screen, color, point, radius)
             # A dark rim keeps a drone legible whatever colour the zone
-            # underneath it happens to be — a yellow drone parked in a
+            # underneath it happens to be : a yellow drone parked in a
             # gold goal would otherwise vanish into it.
             pygame.draw.circle(
                 self.screen, self.BACKGROUND, point, radius, self.px(1)
@@ -561,7 +559,7 @@ class Visualizer:
         font: pygame.font.Font | None = None,
         centered: bool = False,
     ) -> None:
-        """Draw a line of text at ``position`` — its top-left corner, or
+        """Draw a line of text at ``position`` : its top-left corner, or
         its centre if ``centered``."""
         surface = (font or self.font).render(text, True, color)
         x, y = position

@@ -3,15 +3,13 @@
 :class:`Graph` builds a simple adjacency list from the parsed map and
 runs Dijkstra's algorithm over it, once, backwards from the goal. That
 gives every zone its remaining cost to the goal, so a drone can just
-look at its neighbours and step toward whichever is closest — no route
+look at its neighbours and step toward whichever is closest : no route
 needs to be planned per drone.
 
 Entering a normal or priority zone costs 1 turn, a restricted zone costs
 2, and blocked zones are left out of the graph entirely so no route can
 use them.
 """
-
-from __future__ import annotations
 
 import heapq
 

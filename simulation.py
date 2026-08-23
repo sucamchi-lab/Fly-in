@@ -2,8 +2,7 @@
 
 No drone gets a fixed route up front. Instead, every turn, each drone
 looks at its neighbouring zones and steps to whichever is closest to the
-goal and has room. The remaining-cost numbers come from the backwards
-Dijkstra search in :mod:`graph`.
+goal and has room.
 
 This keeps drones from looping (they only ever move closer to the goal)
 and from deadlocking: drones closest to the goal move first each turn,
@@ -14,8 +13,6 @@ zone reserves its landing spot the moment it leaves, so it's guaranteed
 to land on schedule. Link occupancy is rebuilt every turn, since a link
 is only busy while a drone is actually crossing it.
 """
-
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 
@@ -118,7 +115,7 @@ class Simulation:
         link_load: dict[tuple[str, str], int] = {}
 
         # Settled before any flight lands, because landing *is* a drone's
-        # move for the turn — it must not then fly on as well. Sorted
+        # move for the turn : it must not then fly on as well. Sorted
         # nearest the goal first; see the class docstring for why that
         # ordering is what keeps the fleet from deadlocking.
         grounded = sorted(

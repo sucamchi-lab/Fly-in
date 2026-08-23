@@ -4,8 +4,6 @@ Reads a map file, routes every drone from the start hub to the end hub,
 and prints one line per simulation turn.
 """
 
-from __future__ import annotations
-
 import argparse
 import sys
 
