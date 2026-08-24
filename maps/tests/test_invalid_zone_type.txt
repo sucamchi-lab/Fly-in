@@ -1,0 +1,10 @@
+# Invalid map: 'restricted' is misspelled in the zone tag
+# Left unchecked, the zone would quietly cost one turn instead of two.
+nb_drones: 2
+
+start_hub: start 0 0 [color=green]
+hub: slow 1 0 [zone=restrcited color=orange]
+end_hub: goal 2 0 [color=red]
+
+connection: start-slow
+connection: slow-goal

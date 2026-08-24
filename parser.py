@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass, field
 
+ZONE_TYPES = ("normal", "priority", "restricted", "blocked")
+
 
 class ParseError(Exception):
     """Raised when a map file does not respect the expected format."""
@@ -67,70 +69,63 @@ class MapParser:
     def __init__(self, filepath: str) -> None:
         self.filepath = filepath
         self._data = MapData()
+        self._link_keys: set[tuple[str, str]] = set()
 
     def parse(self) -> MapData:
         """Read the file and return its contents."""
         with open(self.filepath, "r", encoding="utf-8") as handle:
             lines = handle.readlines()
 
-        for line_num, raw_line in enumerate(lines, start=1):
+        for num, raw_line in enumerate(lines, start=1):
             line = raw_line.strip()
             if not line or line.startswith("#"):
                 continue
-            self._parse_line(line, line_num)
+            keyword, sep, rest = line.partition(":")
+            body, tags = self._split_metadata(rest.strip(), num)
+            if keyword == "nb_drones" and sep:
+                if self._data.nb_drones:
+                    raise ParseError(
+                        num, "nb_drones is defined more than once")
+                self._data.nb_drones = self._int(body, num, "nb_drones")
+            elif keyword in ("start_hub", "end_hub", "hub"):
+                self._add_zone(keyword, body, tags, num)
+            elif keyword == "connection":
+                self._add_connection(body, tags, num)
+            else:
+                raise ParseError(num, f"unrecognised line: {line!r}")
 
         self._validate()
         return self._data
 
-    def _parse_line(self, line: str, line_num: int) -> None:
-        """Find keywords and dispatch to the right handler."""
-        keyword, sep, rest = line.partition(":")
-        rest = rest.strip()
-
-        if not sep:
-            raise ParseError(line_num, f"unrecognised line: {line!r}")
-        elif keyword == "nb_drones":
-            self._parse_nb_drones(rest, line_num)
-        elif keyword in ("start_hub", "end_hub", "hub"):
-            self._parse_zone(keyword, rest, line_num)
-        elif keyword == "connection":
-            self._parse_connection(rest, line_num)
-        else:
-            raise ParseError(line_num, f"unrecognised line: {line!r}")
-
-    def _parse_nb_drones(self, value: str, line_num: int) -> None:
-        if self._data.nb_drones:
-            raise ParseError(line_num, "nb_drones is defined more than once")
-        self._data.nb_drones = self._parse_positive_int(
-            value, line_num, "nb_drones")
-
-    def _parse_zone(self, keyword: str, rest: str, line_num: int) -> None:
-        """Handle a start, end or hub line."""
-        body, metadata = self._split_metadata(rest, line_num)
+    def _add_zone(self, keyword: str, body: str,
+                  tags: dict[str, str], num: int) -> None:
+        """Handle a start_hub, end_hub or hub line."""
         parts = body.split()
         if len(parts) != 3:
-            raise ParseError(line_num, f"expected 'name x y', got {body!r}")
+            raise ParseError(num, f"expected 'name x y', got {body!r}")
         name, x, y = parts
-
         # Connections use `a-b`, so a dash in a name would be ambiguous.
         if "-" in name:
-            raise ParseError(line_num, f"zone name {name!r} contains a dash")
+            raise ParseError(num, f"zone name {name!r} contains a dash")
+        if name in self._data.zones:
+            raise ParseError(num, f"zone {name!r} is defined more than once")
 
-        is_start = keyword == "start_hub"
-        is_end = keyword == "end_hub"
-        if is_start and self._data.start_zone:
-            raise ParseError(line_num, "start_hub is defined more than once")
-        if is_end and self._data.end_zone:
-            raise ParseError(line_num, "end_hub is defined more than once")
+        zone_type = tags.get("zone", "normal")
+        if zone_type not in ZONE_TYPES:
+            raise ParseError(num, f"unknown zone type {zone_type!r}")
+
+        is_start, is_end = keyword == "start_hub", keyword == "end_hub"
+        if (is_start and self._data.start_zone
+                or is_end and self._data.end_zone):
+            raise ParseError(num, f"{keyword} is defined more than once")
 
         self._data.zones[name] = Zone(
             name=name,
-            x=self._parse_int(x, line_num, "x"),
-            y=self._parse_int(y, line_num, "y"),
-            zone_type=metadata.get("zone", "normal"),
-            max_drones=self._metadata_positive_int(
-                metadata, "max_drones", line_num),
-            color=metadata.get("color"),
+            x=self._int(x, num, "x", positive=False),
+            y=self._int(y, num, "y", positive=False),
+            zone_type=zone_type,
+            max_drones=self.capacity(tags, "max_drones", num),
+            color=tags.get("color"),
             is_start=is_start,
             is_end=is_end)
         if is_start:
@@ -138,77 +133,52 @@ class MapParser:
         elif is_end:
             self._data.end_zone = name
 
-    def _parse_connection(self, rest: str, line_num: int) -> None:
+    def _add_connection(self, body: str,
+                        tags: dict[str, str], num: int) -> None:
         """Handle a connection line."""
-        body, metadata = self._split_metadata(rest, line_num)
         parts = body.split("-")
-        if len(parts) != 2:
-            raise ParseError(line_num, f"expected 'a-b', got {body!r}")
-        zone_a, zone_b = parts
-
-        for name in (zone_a, zone_b):
+        if len(parts) != 2 or parts[0] == parts[1]:
+            raise ParseError(num, f"expected 'a-b' of two zones, got {body!r}")
+        for name in parts:
             if name not in self._data.zones:
-                raise ParseError(
-                    line_num, f"connection to undefined zone {name!r}")
-        if zone_a == zone_b:
+                raise ParseError(num, f"connection to undefined zone {name!r}")
+
+        link = Connection(parts[0], parts[1],
+                          self.capacity(tags, "max_link_capacity", num))
+        if link.key() in self._link_keys:
             raise ParseError(
-                line_num, f"zone {zone_a!r} cannot connect to itself")
-
-        self._data.connections.append(Connection(
-            zone_a=zone_a,
-            zone_b=zone_b,
-            max_link_capacity=self._metadata_positive_int(
-                metadata, "max_link_capacity", line_num)))
+                num, f"connection {body!r} is defined more than once")
+        self._link_keys.add(link.key())
+        self._data.connections.append(link)
 
     @staticmethod
-    def _split_metadata(
-        rest: str, line_num: int
-    ) -> tuple[str, dict[str, str]]:
-        """Pull the optional ``[key=value ...]`` block off the end.
-
-        Returns the remaining text and the tags as a dict. Tokens
-        without an ``=`` are ignored.
-        """
-        if "[" not in rest:
-            return rest.strip(), {}
-
-        body, _, tail = rest.partition("[")
-        if not tail.endswith("]"):
-            raise ParseError(line_num, f"unclosed '[' in {rest!r}")
-        tail = tail[:-1]
-
-        metadata: dict[str, str] = {}
-        for token in tail.split():
-            if "=" in token:
-                key, value = token.split("=", 1)
-                metadata[key] = value
-        return body.strip(), metadata
+    def _split_metadata(rest: str, num: int) -> tuple[str, dict[str, str]]:
+        """Pull the optional ``[key=value ...]`` block off the end."""
+        body, bracket, tail = rest.partition("[")
+        if bracket and not tail.endswith("]"):
+            raise ParseError(num, f"unclosed '[' in {rest!r}")
+        tags = {}
+        for token in tail[:-1].split():
+            key, sep, value = token.partition("=")
+            if not sep:
+                raise ParseError(num, f"expected 'key=value', got {token!r}")
+            tags[key] = value
+        return body.strip(), tags
 
     @staticmethod
-    def _parse_int(value: str, line_num: int, field_name: str) -> int:
-        """Convert a string to an int"""
+    def _int(value: str, num: int, name: str, positive: bool = True) -> int:
+        """Convert to an int, rejecting zero and negatives by default."""
         try:
-            return int(value)
+            number = int(value)
         except ValueError:
-            raise ParseError(
-                line_num, f"{field_name} must be an integer") from None
-
-    def _parse_positive_int(
-        self, value: str, line_num: int, field_name: str
-    ) -> int:
-        """Parse a positive integer."""
-        number = self._parse_int(value, line_num, field_name)
-        if number < 1:
-            raise ParseError(
-                line_num, f"{field_name} must be a positive integer")
+            raise ParseError(num, f"{name} must be an integer") from None
+        if positive and number < 1:
+            raise ParseError(num, f"{name} must be a positive integer")
         return number
 
-    def _metadata_positive_int(
-        self, metadata: dict[str, str], key: str, line_num: int
-    ) -> int:
-        """Read a capacity tag from metadata, defaulting to 1 when absent."""
-        raw = metadata.get(key)
-        return self._parse_positive_int(raw, line_num, key) if raw else 1
+    def capacity(self, tags: dict[str, str], key: str, num: int) -> int:
+        """Read a capacity tag, defaulting to 1 when absent."""
+        return self._int(tags[key], num, key) if key in tags else 1
 
     def _validate(self) -> None:
         """Check the rules that need the whole file to be read."""

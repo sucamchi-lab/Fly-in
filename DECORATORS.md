@@ -5,16 +5,7 @@ how it behaves. It's written with `@name` on the line right above a `def`
 or `class`. This file explains the four you'll run into most in Python:
 `@dataclass`, `@staticmethod`, `@classmethod` and `@property`.
 
-Two of them (`@dataclass`, `@staticmethod`) are still used in this codebase.
-The other two (`@classmethod`, `@property`)
-were removed in favor of plain methods, because while learning, code that's
-explicit about "this runs a function" is easier to reason about than code
-that hides it. They're still explained here in full, since you'll see them
-constantly in other people's Python.
-
----
-
-## `@dataclass` : still used here
+## `@dataclass`
 
 **What it does:** looking at the class body, it writes `__init__`,
 `__repr__` and `__eq__` for you, based on the annotated fields.
@@ -153,14 +144,6 @@ convention named `cls`.
    the inherited method, `cls` is the subclass, not the base class. A
    `@staticmethod` or hardcoded class name can't do that.
 
-**Why it's not used in this project:** two methods in
-[visualizer.py](visualizer.py) (`zone_color`, `rgb`) used to be
-classmethods, but neither builds a new instance and nothing subclasses
-`Visualizer`. `cls` was only being used to reach `cls.rgb(...)` and class
-constants like `cls.START` : which `self.` does exactly as well from an
-instance method. Using `@classmethod` there wasn't wrong, just
-unnecessary: a decorator earning no benefit over the simpler option.
-
 ---
 
 ## `@property` : not used here, but extremely common
@@ -194,23 +177,6 @@ tell the difference. Second, readability: something that conceptually
 *is* a fact about the object (like `is_blocked`, or a `Temperature`
 class's `.celsius` computed from a stored `.kelvin`) often reads better
 without call parens, especially inside an `if`.
-
-**Why it's not used in this project (for now):** `zone.is_blocked` and
-`zone.is_blocked()` do exactly the same thing, but only the second one
-tells you, just by looking at it, "this runs code." Every property in this
-codebase (`entry_cost`, `is_blocked`, `is_priority`, `is_hub`,
-`Connection.key`, `Simulation.finished`, `Simulation.delivered_count`,
-`Drone.in_flight`, `Mode.label`, `Visualizer.idle`) got converted to a
-plain method for exactly that reason : while you're still building the
-habit of knowing what's a method call and what's a stored value, removing
-the ambiguity is worth more than the slightly nicer syntax.
-
-**Worth reintroducing later, once methods feel automatic** : it's a small
-change (add `@property`, drop the `()` at every call site) and a genuinely
-useful tool once the underlying idea (a method disguised as an attribute)
-isn't a source of confusion anymore.
-
----
 
 ## Quick reference
 

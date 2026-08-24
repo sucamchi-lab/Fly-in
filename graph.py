@@ -35,9 +35,7 @@ class Graph:
         for connection in self.connections:
             zone_a = self.zones[connection.zone_a]
             zone_b = self.zones[connection.zone_b]
-            # A link that touches a blocked zone can never be flown, so
-            # it is left out of the graph rather than checked repeatedly
-            # at every step of the simulation.
+            # Skip blocked zones entirely: they are never reachable.
             if zone_a.is_blocked() or zone_b.is_blocked():
                 continue
             self._neighbors[zone_a.name].append(zone_b.name)

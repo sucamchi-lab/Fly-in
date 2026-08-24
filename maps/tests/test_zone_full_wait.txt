@@ -1,0 +1,11 @@
+# Test map: drones wait because the only way on is full
+# The corridor holds one drone at a time, so each drone leaving it frees
+# the slot for the one behind within the same turn.
+nb_drones: 3
+
+start_hub: start 0 0 [color=green]
+hub: narrow 1 0 [color=blue max_drones=1]
+end_hub: goal 2 0 [color=red]
+
+connection: start-narrow [max_link_capacity=3]
+connection: narrow-goal [max_link_capacity=3]

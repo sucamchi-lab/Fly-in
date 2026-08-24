@@ -1,0 +1,17 @@
+# Test map: two routes of different length, both wide open
+# Nothing forces the issue, so the three-hop detour must stay empty.
+nb_drones: 2
+
+start_hub: start 0 0 [color=green]
+hub: short_mid 1 1 [color=blue max_drones=2]
+hub: long_a 1 -1 [color=purple]
+hub: long_b 2 -1 [color=purple]
+hub: long_c 3 -1 [color=purple]
+end_hub: goal 2 0 [color=red]
+
+connection: start-short_mid [max_link_capacity=2]
+connection: short_mid-goal [max_link_capacity=2]
+connection: start-long_a
+connection: long_a-long_b
+connection: long_b-long_c
+connection: long_c-goal

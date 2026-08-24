@@ -1,0 +1,11 @@
+# Invalid map: the same zone name is defined twice
+# The second definition would silently replace the first.
+nb_drones: 2
+
+start_hub: start 0 0 [color=green]
+hub: waypoint 1 0 [color=blue]
+hub: waypoint 1 1 [color=blue]
+end_hub: goal 2 0 [color=red]
+
+connection: start-waypoint
+connection: waypoint-goal

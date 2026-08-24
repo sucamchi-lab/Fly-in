@@ -1,0 +1,11 @@
+# Test map: restricted zone timing, one drone, no traffic
+# Pins the 2-turn crossing: the departure turn is the first of the two,
+# so the drone is in transit for one turn and lands on the next.
+nb_drones: 1
+
+start_hub: start 0 0 [color=green]
+hub: slow 1 0 [zone=restricted color=orange]
+end_hub: goal 2 0 [color=red]
+
+connection: start-slow
+connection: slow-goal

@@ -113,7 +113,7 @@ class Simulation:
 
         # Settled before any flight lands, because landing *is* a drone's
         # move for the turn : it must not then fly on as well.
-        #  Sorted nearest the goal first
+        # Sorted nearest the goal first.
         grounded = sorted(
             (
                 drone for drone in self.drones

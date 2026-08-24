@@ -1,0 +1,9 @@
+# Invalid map: the same connection is defined twice, the second time
+# the other way round. The two capacities would contradict each other.
+nb_drones: 2
+
+start_hub: start 0 0 [color=green]
+end_hub: goal 1 0 [color=red]
+
+connection: start-goal [max_link_capacity=1]
+connection: goal-start [max_link_capacity=5]
