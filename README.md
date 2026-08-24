@@ -54,10 +54,7 @@ main.py
 4. Back in `main.py`, each turn is printed as it comes back, followed by
    a one-line summary.
 5. Unless `--no-gui` is passed, **`visualizer.py`** opens last. It builds
-   its *own* `Simulation`. From there it drives
-   that simulation turn by turn from its own event loop
-   (`Visualizer.run()` calling `_handle_events`, `_update` and `_draw`
-   every frame) instead of playing it out in one go.
+   its own `Simulation` turn by turn from its own event loop, drawing the network and animating the drones as they move.
 
 ## Algorithm and implementation strategy
 
@@ -80,19 +77,19 @@ Every drone then routes itself, one step at a time: **move to whichever
 neighbouring zone has the lowest remaining cost and is not currently
 full.** No drone owns a route, so congestion needs no replanning : a
 drone whose preferred zone is full simply takes the next best one, or
-waits, and picks up again from wherever it ends up.
+waits.
 
 At equal remaining cost, a priority zone is chosen over a normal one. 
 Blocked zones are dropped from the graph when it is built.
 
 ### Loop / deadlock prevention
 
-- A drone only ever moves to a zone with a strictly
+A drone only ever moves to a zone with a strictly
 lower remaining cost, so that cost falls every single time it moves. It
 therefore reaches the goal in at most `distances[start]` moves and can
 never circle, backtrack, or oscillate between two zones.
 
-- Drones are moved in order of how close they are
+Drones are moved in order of how close they are
 to the goal, nearest first. Consider the drone closest to the goal: the
 zone it wants is closer still, so it can only be occupied by drones that
 are closer than it: and those have already been moved out of the way
@@ -116,20 +113,13 @@ and animates the fleet across it.
 The visualizer is not required to run the simulation, but it is highly recommended 
 to see the algorithm in action and enhance the user's understanding of the simulation:
 
-*   **Zones** are circles, coloured by the map's `color=` tag or, failing
-    that, by zone type (blue normal, orange restricted, cyan priority,
-    grey blocked, green start, red goal). A capacity above one is shown
-    as `[n]` above the zone.
+*   **Zones** are circles, coloured by the map's `color=` tag or a default based on type.
+    A capacity above one is shown inside the circle as a small number.
 *   **Connections** are lines, labelled `xN` if they carry more than
     one drone at a time.
 *   **Drones** are small numbered icons that slide between zones.
 *   **Delivered drones stay in the goal.** They are not removed on
-    arrival; they park inside the goal circle, dimmed to show they are
-    at rest, each keeping the slot it landed in. Start and goal are drawn
-    larger than an ordinary zone so they have room for the fleet, and the
-    parked drones sit on a golden-angle spiral that fills the circle
-    evenly from the middle out. The picture therefore accounts for every
-    drone at every moment, and the goal visibly fills as the run proceeds.
+    arrival; they park inside the goal circles.
 *   **The side panel** carries the turn counter, the delivered count, the
     playback mode and speed, the controls and a list of the movements in
     the current turn.
@@ -199,15 +189,10 @@ The algorithm is fast enough to handle the largest maps in the test suite, and t
 ## Resources
 
 *   [Dijkstra's algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)
-    : the shortest-path search, run once backwards from the goal.
-*   [`heapq`](https://docs.python.org/3/library/heapq.html) : the binary
-    heap used as Dijkstra's priority queue.
+*   [heapq](https://docs.python.org/3/library/heapq.html)
 *   [Python `dataclasses`](https://docs.python.org/3/library/dataclasses.html)
-    : the value types for zones, connections and turn results.
-*   [Python `decorators`](https://docs.python.org/3/glossary.html#term-decorator)
 *   [pygame documentation](https://www.pygame.org/docs/) 
 
 ### AI usage
 
 AI was used in a responsible manner as a tutor and to assist in algorithm implementation, error handling and unit testing. All code is reviewed and understood by the author.
-

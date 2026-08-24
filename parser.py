@@ -30,12 +30,15 @@ class Zone:
         return 2 if self.zone_type == "restricted" else 1
 
     def is_blocked(self) -> bool:
+        """True if the zone is blocked and cannot be entered or used."""
         return self.zone_type == "blocked"
 
     def is_priority(self) -> bool:
+        """True if the zone is a priority zone."""
         return self.zone_type == "priority"
 
     def is_hub(self) -> bool:
+        """True if the zone is a start or end hub."""
         return self.is_start or self.is_end
 
 
@@ -104,7 +107,6 @@ class MapParser:
         if len(parts) != 3:
             raise ParseError(num, f"expected 'name x y', got {body!r}")
         name, x, y = parts
-        # Connections use `a-b`, so a dash in a name would be ambiguous.
         if "-" in name:
             raise ParseError(num, f"zone name {name!r} contains a dash")
         if name in self._data.zones:

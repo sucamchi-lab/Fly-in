@@ -35,7 +35,6 @@ class Graph:
         for connection in self.connections:
             zone_a = self.zones[connection.zone_a]
             zone_b = self.zones[connection.zone_b]
-            # Skip blocked zones entirely: they are never reachable.
             if zone_a.is_blocked() or zone_b.is_blocked():
                 continue
             self._neighbors[zone_a.name].append(zone_b.name)
@@ -53,7 +52,7 @@ class Graph:
 
     def distances_to_goal(self) -> dict[str, int]:
         """Cost in turns from every zone to the end hub.
-        Dijkstra's algorithm run backwards from the goal.
+        Dijkstra's algorithm runs backwards from the goal.
         Unreachable zones are skipped.
         """
         distances: dict[str, int] = {self.end: 0}

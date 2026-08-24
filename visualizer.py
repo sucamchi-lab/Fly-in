@@ -33,11 +33,7 @@ class Mode(Enum):
 
 
 class Visualizer:
-    """Draws and drives a :class:`Simulation` in a pygame window.
-
-    Builds its own simulation from the graph, so it can restart the run
-    on demand instead of being tied to one played-out instance.
-    """
+    """Draws and drives the Simulation in a pygame window"""
     DESIGN_HEIGHT = 750
     PANEL_WIDTH = 280
     ZONE_RADIUS = 18
@@ -52,7 +48,7 @@ class Visualizer:
     MAX_SPEED = 4.0
     SPEED_STEP = 0.5
 
-    PARKED_SPACING = 9.0  # Gap between drones parked in the goal.
+    PARKED_SPACING = 9.0  # Gap between drones parked in the goal in pixels
     GOLDEN_ANGLE = 2.4  # Angle in radians between successive parked drones
 
     # Colours used throughout the window.
@@ -86,7 +82,7 @@ class Visualizer:
         pygame.init()
         self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         pygame.display.set_caption("Fly-in : drone routing simulation")
-        self.scale = max(1.0, self.screen.get_height() / self.DESIGN_HEIGHT)
+        self.scale = self.screen.get_height() / self.DESIGN_HEIGHT
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, self.px(18))
         self.font_medium = pygame.font.Font(None, self.px(22))

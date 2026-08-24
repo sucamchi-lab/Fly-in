@@ -25,11 +25,7 @@ class RoutingError(Exception):
 
 @dataclass
 class Drone:
-    """One drone and its current state.
-
-    ``zone`` is where it's sitting, or where it departed from if it's
-    in flight. ``destination`` is set only while in flight.
-    """
+    """One drone, its current state and destination."""
 
     drone_id: int
     zone: str
@@ -52,7 +48,6 @@ class Drone:
 @dataclass
 class TurnResult:
     """What happened during one turn: each drone's move."""
-
     moves: list[str] = field(default_factory=list)
 
     def __str__(self) -> str:
@@ -180,8 +175,7 @@ class Simulation:
         remaining = self.distances[here]
         candidates = [
             neighbor for neighbor in self.graph.neighbors(here)
-            # `.get(..., remaining)` makes zones that cannot reach the
-            # goal compare as "no improvement", so they are skipped.
+            # skip zones that are further from the goal, full, or busy
             if self.distances.get(neighbor, remaining) < remaining
             and self._has_room(neighbor)
             and self._link_is_free(here, neighbor, link_load)
