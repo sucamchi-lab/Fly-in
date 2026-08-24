@@ -1,6 +1,4 @@
-"""Parsing of map txt files.
-Lines starting with # and blank lines are ignored.
-"""
+"""Parsing of map txt files."""
 
 from dataclasses import dataclass, field
 
@@ -10,14 +8,12 @@ class ParseError(Exception):
 
     def __init__(self, line_num: int, message: str) -> None:
         super().__init__(
-            f"line {line_num}: {message}" if line_num else message
-        )
+            f"line {line_num}: {message}" if line_num else message)
 
 
 @dataclass(frozen=True)
 class Zone:
     """A zone (node) of the drone network."""
-
     name: str
     x: int
     y: int
@@ -44,7 +40,6 @@ class Zone:
 @dataclass(frozen=True)
 class Connection:
     """A bidirectional link between two zones."""
-
     zone_a: str
     zone_b: str
     max_link_capacity: int = 1
@@ -59,7 +54,6 @@ class Connection:
 @dataclass
 class MapData:
     """Everything a map file describes, after parsing."""
-
     nb_drones: int = 0
     zones: dict[str, Zone] = field(default_factory=dict)
     connections: list[Connection] = field(default_factory=list)
@@ -89,7 +83,7 @@ class MapParser:
         return self._data
 
     def _parse_line(self, line: str, line_num: int) -> None:
-        """Split off the ``keyword:`` prefix and dispatch on it."""
+        """Find keywords and dispatch to the right handler."""
         keyword, sep, rest = line.partition(":")
         rest = rest.strip()
 
@@ -108,17 +102,14 @@ class MapParser:
         if self._data.nb_drones:
             raise ParseError(line_num, "nb_drones is defined more than once")
         self._data.nb_drones = self._parse_positive_int(
-            value, line_num, "nb_drones"
-        )
+            value, line_num, "nb_drones")
 
     def _parse_zone(self, keyword: str, rest: str, line_num: int) -> None:
-        """Handle a ``start_hub:``, ``end_hub:`` or ``hub:`` line."""
+        """Handle a start, end or hub line."""
         body, metadata = self._split_metadata(rest, line_num)
         parts = body.split()
         if len(parts) != 3:
-            raise ParseError(
-                line_num, f"expected 'name x y', got {body!r}"
-            )
+            raise ParseError(line_num, f"expected 'name x y', got {body!r}")
         name, x, y = parts
 
         # Connections use `a-b`, so a dash in a name would be ambiguous.
@@ -138,19 +129,17 @@ class MapParser:
             y=self._parse_int(y, line_num, "y"),
             zone_type=metadata.get("zone", "normal"),
             max_drones=self._metadata_positive_int(
-                metadata, "max_drones", line_num
-            ),
+                metadata, "max_drones", line_num),
             color=metadata.get("color"),
             is_start=is_start,
-            is_end=is_end,
-        )
+            is_end=is_end)
         if is_start:
             self._data.start_zone = name
         elif is_end:
             self._data.end_zone = name
 
     def _parse_connection(self, rest: str, line_num: int) -> None:
-        """Handle a ``connection:`` line."""
+        """Handle a connection line."""
         body, metadata = self._split_metadata(rest, line_num)
         parts = body.split("-")
         if len(parts) != 2:
@@ -160,20 +149,16 @@ class MapParser:
         for name in (zone_a, zone_b):
             if name not in self._data.zones:
                 raise ParseError(
-                    line_num, f"connection to undefined zone {name!r}"
-                )
+                    line_num, f"connection to undefined zone {name!r}")
         if zone_a == zone_b:
             raise ParseError(
-                line_num, f"zone {zone_a!r} cannot connect to itself"
-            )
+                line_num, f"zone {zone_a!r} cannot connect to itself")
 
         self._data.connections.append(Connection(
             zone_a=zone_a,
             zone_b=zone_b,
             max_link_capacity=self._metadata_positive_int(
-                metadata, "max_link_capacity", line_num
-            ),
-        ))
+                metadata, "max_link_capacity", line_num)))
 
     @staticmethod
     def _split_metadata(
@@ -201,22 +186,21 @@ class MapParser:
 
     @staticmethod
     def _parse_int(value: str, line_num: int, field_name: str) -> int:
+        """Convert a string to an int"""
         try:
             return int(value)
         except ValueError:
             raise ParseError(
-                line_num, f"{field_name} must be an integer"
-            ) from None
+                line_num, f"{field_name} must be an integer") from None
 
     def _parse_positive_int(
         self, value: str, line_num: int, field_name: str
     ) -> int:
+        """Parse a positive integer."""
         number = self._parse_int(value, line_num, field_name)
         if number < 1:
             raise ParseError(
-                line_num,
-                f"{field_name} must be a positive integer",
-            )
+                line_num, f"{field_name} must be a positive integer")
         return number
 
     def _metadata_positive_int(

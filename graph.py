@@ -1,10 +1,9 @@
 """The zone network, and the pathfinding done on it.
 
-:class:`Graph` builds a simple adjacency list from the parsed map and
-runs Dijkstra's algorithm over it, once, backwards from the goal. That
+Graph builds a simple adjacency list from the parsed map and
+runs Dijkstra's algorithm over it, backwards from the goal. That
 gives every zone its remaining cost to the goal, so a drone can just
-look at its neighbours and step toward whichever is closest : no route
-needs to be planned per drone.
+look at its neighbours and step toward whichever is closest to the goal.
 
 Entering a normal or priority zone costs 1 turn, a restricted zone costs
 2, and blocked zones are left out of the graph entirely so no route can
@@ -17,10 +16,9 @@ from parser import Connection, MapData, Zone
 
 
 class Graph:
-    """An undirected graph of zones, with cost-aware pathfinding.
-
-    Blocked zones are dropped when the adjacency is built, so every
-    method below can assume that whatever it returns is flyable.
+    """An undirected graph of zones with pathfinding.
+    Blocked zones are dropped when the adjacency is built,
+    so they are never considered for routing.
     """
 
     def __init__(self, map_data: MapData) -> None:
@@ -31,8 +29,7 @@ class Graph:
         self.end = map_data.end_zone
 
         self._neighbors: dict[str, list[str]] = {
-            name: [] for name in self.zones
-        }
+            name: [] for name in self.zones}
         self._links: dict[tuple[str, str], Connection] = {}
 
         for connection in self.connections:
@@ -58,9 +55,8 @@ class Graph:
 
     def distances_to_goal(self) -> dict[str, int]:
         """Cost in turns from every zone to the end hub.
-
-        Dijkstra's algorithm run backwards from the goal. Zones the goal
-        cannot be reached from are simply absent from the result.
+        Dijkstra's algorithm run backwards from the goal.
+        Unreachable zones are skipped.
         """
         distances: dict[str, int] = {self.end: 0}
         queue: list[tuple[int, str]] = [(0, self.end)]
@@ -83,7 +79,7 @@ class Graph:
     def route_rank(
         self, zone_name: str, distances: dict[str, int]
     ) -> tuple[int, bool]:
-        """Sort key for picking a next hop: lowest cost first, priority
+        """Sort key for picking next move: lowest cost first, priority
         zones breaking ties."""
         return (distances[zone_name], not self.zones[zone_name].is_priority())
 

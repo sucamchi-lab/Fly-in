@@ -23,10 +23,41 @@ Requires **Python 3.10 or later**.
 
 ```bash
 make install                                     # create venv, install deps
-make run MAP=maps/easy/01_linear_path.txt        # change the map to try different scenarios
-make run-no-gui                                  # text output only for testing
+make run                                         # change the map to try different scenarios
+make run-no-gui                                  # text output only
 ```
 
+
+## Execution flow
+
+`main.py` is the only entry point; running it walks through the other
+modules via `FlyIn.run()`:
+
+```
+main.py
+  ├─ parser.py     MapParser.parse()   map.txt  -> MapData
+  ├─ graph.py      Graph(map_data)     MapData  -> adjacency + Dijkstra
+  ├─ simulation.py Simulation.run()    Graph    -> list[TurnResult]
+  └─ visualizer.py Visualizer.run()    Graph    -> pygame window (optional)
+```
+
+1. **`parser.py`** reads the map file line by line and turns it into a
+   `MapData`: a dictionary of zones, a list of connections and the drone
+   count. Anything that doesn't match the expected format raises a
+   `ParseError`.
+2. **`graph.py`** turns that `MapData` into an adjacency list, dropping
+   blocked zones so they're never considered for routing.
+3. **`simulation.py`** first runs Dijkstra's algorithm once, backwards
+   from the goal, then plays the fleet out
+   turn by turn: `Simulation.run()` calls `Simulation.step()` until every
+   drone is delivered.
+4. Back in `main.py`, each turn is printed as it comes back, followed by
+   a one-line summary.
+5. Unless `--no-gui` is passed, **`visualizer.py`** opens last. It builds
+   its *own* `Simulation`. From there it drives
+   that simulation turn by turn from its own event loop
+   (`Visualizer.run()` calling `_handle_events`, `_update` and `_draw`
+   every frame) instead of playing it out in one go.
 
 ## Algorithm and implementation strategy
 
@@ -88,13 +119,10 @@ to see the algorithm in action and enhance the user's understanding of the simul
 *   **Zones** are circles, coloured by the map's `color=` tag or, failing
     that, by zone type (blue normal, orange restricted, cyan priority,
     grey blocked, green start, red goal). A capacity above one is shown
-    as `[n]` above the zone; blocked zones are drawn hollow with a cross
-    through them, so an unusable zone is unmistakable at a glance.
-*   **Connections** are lines, labelled `xN` when they carry more than
+    as `[n]` above the zone.
+*   **Connections** are lines, labelled `xN` if they carry more than
     one drone at a time.
-*   **Drones** are numbered dots that slide between zones rather than
-    jumping, and are fanned out so a stack of them in one zone stays
-    countable.
+*   **Drones** are small numbered icons that slide between zones.
 *   **Delivered drones stay in the goal.** They are not removed on
     arrival; they park inside the goal circle, dimmed to show they are
     at rest, each keeping the slot it landed in. Start and goal are drawn
@@ -120,10 +148,10 @@ to see the algorithm in action and enhance the user's understanding of the simul
 | `S`       | Switch between automatic and stepping         |
 | `R`       | Restart the run from the beginning            |
 | `↑` / `↓` | Faster / slower                               |
-| `ESC`/`Q` | Close the window                              |
+| `ESC`     | Close the window                              |
 
 
-## Example without GUI
+## Example (no GUI)
 
 Input : `maps/easy/01_linear_path.txt`:
 
@@ -181,5 +209,5 @@ The algorithm is fast enough to handle the largest maps in the test suite, and t
 
 ### AI usage
 
-AI was used in a responsible manner as a tutor and to assist in algorithm implementation, error handling and unit testing. All code is understood by the author.
+AI was used in a responsible manner as a tutor and to assist in algorithm implementation, error handling and unit testing. All code is reviewed and understood by the author.
 

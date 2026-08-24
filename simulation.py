@@ -1,8 +1,6 @@
-"""The turn-by-turn drone routing engine.
-
-No drone gets a fixed route up front. Instead, every turn, each drone
-looks at its neighbouring zones and steps to whichever is closest to the
-goal and has room.
+"""The turn-by-turn routing engine.
+Every turn, each drone looks at its neighbouring zones and steps
+to whichever is closest to the goal and has room.
 
 This keeps drones from looping (they only ever move closer to the goal)
 and from deadlocking: drones closest to the goal move first each turn,
@@ -20,12 +18,14 @@ from graph import Graph
 
 
 class RoutingError(Exception):
-    """Raised when the drones cannot all be delivered."""
+    """Raised when the drones cannot all be delivered.
+    Inherits from Exception so it can be caught and reported to the user.
+    """
 
 
 @dataclass
 class Drone:
-    """One drone: is it sitting in a zone, in flight, or delivered?
+    """One drone and its current state.
 
     ``zone`` is where it's sitting, or where it departed from if it's
     in flight. ``destination`` is set only while in flight.
@@ -63,12 +63,12 @@ class Simulation:
     """Moves a fleet of drones from the start hub to the end hub.
 
     Call :meth:`step` to advance one turn, or :meth:`run` to play the
-    whole simulation out. The visualizer drives the former; the
+    whole simulation out. The visualizer uses the former; the
     command-line output uses the latter.
     """
 
     #: A simulation needing more turns than this is assumed to be stuck.
-    MAX_TURNS = 10_000
+    MAX_TURNS = 10000
 
     def __init__(self, graph: Graph, nb_drones: int) -> None:
         """Place every drone at the start hub, ready to fly."""
@@ -76,17 +76,14 @@ class Simulation:
         self.distances = graph.distances_to_goal()
         if graph.start not in self.distances:
             raise RoutingError(
-                f"no route from {graph.start!r} to {graph.end!r}"
-            )
+                f"no route from {graph.start!r} to {graph.end!r}")
 
         self.drones = [
             Drone(drone_id=i, zone=graph.start)
             for i in range(1, nb_drones + 1)
         ]
         self.turn = 0
-        # Occupancy of each zone, carried across turns. Hubs are counted
-        # too, purely so the bookkeeping has no special cases; their
-        # capacity is never actually enforced.
+        # Occupancy of each zone, carried across turns.
         self._zone_load: dict[str, int] = {graph.start: nb_drones}
 
     def delivered_count(self) -> int:
@@ -115,24 +112,21 @@ class Simulation:
         link_load: dict[tuple[str, str], int] = {}
 
         # Settled before any flight lands, because landing *is* a drone's
-        # move for the turn : it must not then fly on as well. Sorted
-        # nearest the goal first; see the class docstring for why that
-        # ordering is what keeps the fleet from deadlocking.
+        # move for the turn : it must not then fly on as well.
+        #  Sorted nearest the goal first
         grounded = sorted(
             (
                 drone for drone in self.drones
                 if not drone.in_flight() and not self.is_delivered(drone)
             ),
-            key=lambda drone: self.distances[drone.zone],
-        )
+            key=lambda drone: self.distances[drone.zone])
 
         # Flights are resolved first all the same, so that the links they
         # are still occupying are visible to everyone choosing a step.
         for drone in self.drones:
             if drone.destination is not None:
                 self._advance_flight(
-                    drone, drone.destination, link_load, result
-                )
+                    drone, drone.destination, link_load, result)
 
         for drone in grounded:
             target = self._choose_step(drone, link_load)
@@ -143,19 +137,15 @@ class Simulation:
             raise RoutingError(
                 f"deadlock on turn {self.turn}: "
                 f"{len(self.drones) - self.delivered_count()} "
-                f"drones cannot move"
-            )
+                f"drones cannot move")
         return result
 
     def run(self) -> list[TurnResult]:
-        """Play the simulation to completion, one :class:`TurnResult` per
-        turn."""
+        """Play the simulation to completion, one TurnResult per turn."""
         results: list[TurnResult] = []
         while not self.finished():
             if self.turn >= self.MAX_TURNS:
-                raise RoutingError(
-                    f"gave up after {self.MAX_TURNS} turns"
-                )
+                raise RoutingError(f"gave up after {self.MAX_TURNS} turns")
             results.append(self.step())
         return results
 
@@ -200,8 +190,7 @@ class Simulation:
             return None
         return min(
             candidates,
-            key=lambda name: self.graph.route_rank(name, self.distances),
-        )
+            key=lambda name: self.graph.route_rank(name, self.distances))
 
     def _depart(
         self,
@@ -210,11 +199,7 @@ class Simulation:
         link_load: dict[tuple[str, str], int],
         result: TurnResult,
     ) -> None:
-        """Send a drone out of its zone toward ``target``.
-
-        The new slot is claimed immediately, even on a two-turn crossing,
-        so the arrival is guaranteed rather than fought for later.
-        """
+        """Send a drone from origin to target, reserving the landing slot"""
         origin = drone.zone
         self._occupy_link(origin, target, link_load)
         self._zone_load[origin] -= 1
@@ -232,7 +217,7 @@ class Simulation:
             result.moves.append(f"D{drone.drone_id}-{origin}-{target}")
 
     def _has_room(self, zone_name: str) -> bool:
-        """True if a zone is a hub (unlimited) or below its capacity."""
+        """True if a zone is start/end or below its capacity."""
         zone = self.graph.zone(zone_name)
         if zone.is_hub():
             return True

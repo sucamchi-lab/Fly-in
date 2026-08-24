@@ -1,7 +1,6 @@
-"""Command-line entry point for the Fly-in drone routing simulation.
-
-Reads a map file, routes every drone from the start hub to the end hub,
-and prints one line per simulation turn.
+"""
+Main entry point for the Fly-in drone routing simulation.
+Reads the map file, runs the simulation, and optionally opens the visualizer.
 """
 
 import argparse
@@ -13,7 +12,7 @@ from simulation import RoutingError, Simulation, TurnResult
 
 
 class FlyIn:
-    """Entry point for the Fly-in drone routing simulation."""
+    """Entry point class for the drone routing simulation."""
 
     def __init__(self, argv: list[str] | None = None) -> None:
         """Parse command-line arguments."""
@@ -62,12 +61,9 @@ class FlyIn:
     @staticmethod
     def report(simulation: Simulation, results: list[TurnResult]) -> None:
         """Write the summary to standard error."""
-        nb_drones = len(simulation.drones)
+        nb = len(simulation.drones)
         turns = len(results)
-        print(
-            f"{nb_drones} drones delivered in {turns} turns",
-            file=sys.stderr,
-        )
+        print(f"{nb} drones delivered in {turns} turns", file=sys.stderr)
 
 
 if __name__ == "__main__":
