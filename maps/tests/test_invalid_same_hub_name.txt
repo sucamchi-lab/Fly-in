@@ -1,8 +1,0 @@
-# Invalid map: the start hub and the end hub share a name
-# A zone cannot be both, so this is the duplicate-name case again.
-nb_drones: 2
-
-start_hub: hub 0 0 [color=green]
-end_hub: hub 1 0 [color=red]
-
-connection: hub-hub

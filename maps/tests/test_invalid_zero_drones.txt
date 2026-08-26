@@ -1,7 +1,0 @@
-# Invalid map: a fleet of no drones
-nb_drones: 0
-
-start_hub: start 0 0 [color=green]
-end_hub: goal 1 0 [color=red]
-
-connection: start-goal
