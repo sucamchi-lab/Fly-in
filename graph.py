@@ -1,4 +1,4 @@
-"""The zone network, and the pathfinding done on it.
+"""The zone network and pathfinding algorithm.
 
 Graph builds a simple adjacency list from the parsed map and
 runs Dijkstra's algorithm over it, backwards from the goal. That
@@ -6,23 +6,19 @@ gives every zone its remaining cost to the goal, so a drone can just
 look at its neighbours and step toward whichever is closest to the goal.
 
 Entering a normal or priority zone costs 1 turn, a restricted zone costs
-2, and blocked zones are left out of the graph entirely so no route can
-use them.
+2, and blocked zones are skipped.
 """
 
 import heapq
 
-from parser import Connection, MapData, Zone
+from parser import Connection, MapData
 
 
 class Graph:
-    """An undirected graph of zones with pathfinding.
-    Blocked zones are dropped when the adjacency is built,
-    so they are never considered for routing.
-    """
+    """An undirected graph of zones with pathfinding."""
 
     def __init__(self, map_data: MapData) -> None:
-        """Build the adjacency and link lookups from a parsed map."""
+        """Build a graph from the parsed map data."""
         self.zones = map_data.zones
         self.connections = map_data.connections
         self.start = map_data.start_zone
@@ -79,7 +75,3 @@ class Graph:
         """Sort key for picking next move: lowest cost first, priority
         zones breaking ties."""
         return (distances[zone_name], not self.zones[zone_name].is_priority())
-
-    def zone(self, zone_name: str) -> Zone:
-        """Look up a zone by name."""
-        return self.zones[zone_name]

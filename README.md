@@ -11,8 +11,7 @@ possible.
 A map.txt file describes the network as a graph: zones are the nodes,
 connections are bidirectional edges. Every zone has a type that decides
 what it costs to fly into it: **normal** (1 turn), **priority** (1 turn,
-but preferred when routes tie), **restricted** (2 turns, during which the
-drone sits out on the connection) and **blocked** (no entry at all).
+but preferred when routes tie), **restricted** (2 turns) and **blocked** (no entry at all).
 
 Each turn is printed as one line naming every drone that moved.
 The run can also be watched in a pygame window.
@@ -27,19 +26,10 @@ make run                                         # change the map to try differe
 make run-no-gui                                  # text output only
 ```
 
-
 ## Execution flow
 
-`main.py` is the only entry point; running it walks through the other
+`main.py` is the only entry point, and it accesses the other
 modules via `FlyIn.run()`:
-
-```
-main.py
-  ├─ parser.py     MapParser.parse()   map.txt  -> MapData
-  ├─ graph.py      Graph(map_data)     MapData  -> adjacency + Dijkstra
-  ├─ simulation.py Simulation.run()    Graph    -> list[TurnResult]
-  └─ visualizer.py Visualizer.run()    Graph    -> pygame window (optional)
-```
 
 1. **`parser.py`** reads the map file line by line and turns it into a
    `MapData`: a dictionary of zones, a list of connections and the drone
@@ -120,10 +110,10 @@ to see the algorithm in action and enhance the user's understanding of the simul
 *   **Drones** are small numbered icons that slide between zones.
 *   **Delivered drones stay in the goal.** They are not removed on
     arrival; they park inside the goal circles.
-*   **The side panel** carries the turn counter, the delivered count, the
+*   **The side panel** carries the turn counter, the
     playback mode and speed, the controls and a list of the movements in
     the current turn.
-*   **Playback starts on your terms.** The window opens with the map laid
+*   **Playback control** The window opens with the map laid
     out and nothing moving, offering a choice between playing through and
     stepping one turn at a time. 
     Speed is adjustable while playing, and `R` restarts the run at any point.
@@ -167,9 +157,9 @@ D1-goal D2-waypoint2
 D2-goal
 ```
 
-## Performance
+## Performance (Bonus)
 
-The algorithm is fast enough to handle the largest maps in the test suite, and the number of turns is always at or below the target, as shown in the table below. The implementation therefore meets the requirements for the **bonus points.**
+The algorithm is able to handle the largest maps in the test suite, and the number of turns is always at or below the target, as shown in the table below. The implementation therefore meets the requirements for the **bonus points.**
 
 
 | Map | Drones | Result | Target |
@@ -188,11 +178,11 @@ The algorithm is fast enough to handle the largest maps in the test suite, and t
 
 ## Resources
 
-*   [Dijkstra's algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)
-*   [heapq](https://docs.python.org/3/library/heapq.html)
-*   [Python `dataclasses`](https://docs.python.org/3/library/dataclasses.html)
-*   [pygame documentation](https://www.pygame.org/docs/) 
+- [Dijkstra's algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)
+- [heapq](https://docs.python.org/3/library/heapq.html)
+- [Python dataclasses](https://docs.python.org/3/library/dataclasses.html)
+- [pygame documentation](https://www.pygame.org/docs/) 
 
 ### AI usage
 
-AI was used in a responsible manner as a tutor and to assist in algorithm implementation, error handling and unit testing. All code is reviewed and understood by the author.
+AI was used in a responsible manner as a tutor and to assist in algorithm implementation, error handling and unit testing. All code is understood and reviewed by the author.

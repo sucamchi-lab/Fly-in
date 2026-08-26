@@ -1,6 +1,6 @@
 """
 Main entry point for the Fly-in drone routing simulation.
-Reads the map file, runs the simulation, and optionally opens the visualizer.
+Reads the map file, runs the simulation and opens the visualizer.
 """
 
 import argparse
@@ -18,6 +18,7 @@ class FlyIn:
         """Parse command-line arguments."""
         parser = argparse.ArgumentParser()
         parser.add_argument("mapfile")
+        # store_true means the flag is False by default, and True if present
         parser.add_argument("--no-gui", action="store_true")
         parser.add_argument("--debug", action="store_true")
         self.args = parser.parse_args(argv)

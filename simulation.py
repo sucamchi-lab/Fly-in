@@ -5,11 +5,7 @@ to whichever is closest to the goal and has room.
 This keeps drones from looping (they only ever move closer to the goal)
 and from deadlocking: drones closest to the goal move first each turn,
 so the zone ahead of them is always freed up in time.
-
-Zone occupancy is tracked across turns. A drone crossing to a restricted
-zone reserves its landing spot the moment it leaves, so it's guaranteed
-to land on schedule. Link occupancy is rebuilt every turn, since a link
-is only busy while a drone is actually crossing it.
+Zone occupancy is tracked across turns.
 """
 
 from dataclasses import dataclass, field
@@ -18,9 +14,7 @@ from graph import Graph
 
 
 class RoutingError(Exception):
-    """Raised when the drones cannot all be delivered.
-    Inherits from Exception so it can be caught and reported to the user.
-    """
+    """Raised when the drones cannot all be delivered."""
 
 
 @dataclass
@@ -47,7 +41,7 @@ class Drone:
 
 @dataclass
 class TurnResult:
-    """What happened during one turn: each drone's move."""
+    """What happens during one turn"""
     moves: list[str] = field(default_factory=list)
 
     def __str__(self) -> str:
@@ -55,15 +49,11 @@ class TurnResult:
 
 
 class Simulation:
-    """Moves a fleet of drones from the start hub to the end hub.
+    """Moves drones from the start hub to the end hub, one turn at a time.
 
-    Call :meth:`step` to advance one turn, or :meth:`run` to play the
-    whole simulation out. The visualizer uses the former; the
-    command-line output uses the latter.
+    Call step to advance one turn (visualizer)
+    or run to play the whole simulation out. (terminal)
     """
-
-    #: A simulation needing more turns than this is assumed to be stuck.
-    MAX_TURNS = 10000
 
     def __init__(self, graph: Graph, nb_drones: int) -> None:
         """Place every drone at the start hub, ready to fly."""
@@ -115,9 +105,6 @@ class Simulation:
                 if not drone.in_flight() and not self.is_delivered(drone)
             ),
             key=lambda drone: self.distances[drone.zone])
-
-        # Flights are resolved first all the same, so that the links they
-        # are still occupying are visible to everyone choosing a step.
         for drone in self.drones:
             if drone.destination is not None:
                 self._advance_flight(
@@ -139,8 +126,6 @@ class Simulation:
         """Play the simulation to completion, one TurnResult per turn."""
         results: list[TurnResult] = []
         while not self.finished():
-            if self.turn >= self.MAX_TURNS:
-                raise RoutingError(f"gave up after {self.MAX_TURNS} turns")
             results.append(self.step())
         return results
 
@@ -199,7 +184,7 @@ class Simulation:
         self._zone_load[origin] -= 1
         self._zone_load[target] = self._zone_load.get(target, 0) + 1
 
-        crossing_turns = self.graph.zone(target).entry_cost()
+        crossing_turns = self.graph.zones[target].entry_cost()
         if crossing_turns == 1:
             drone.zone = target
             result.moves.append(f"D{drone.drone_id}-{target}")
@@ -212,7 +197,7 @@ class Simulation:
 
     def _has_room(self, zone_name: str) -> bool:
         """True if a zone is start/end or below its capacity."""
-        zone = self.graph.zone(zone_name)
+        zone = self.graph.zones[zone_name]
         if zone.is_hub():
             return True
         return self._zone_load.get(zone_name, 0) < zone.max_drones

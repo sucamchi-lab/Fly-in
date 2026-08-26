@@ -34,11 +34,11 @@ class Mode(Enum):
 
 class Visualizer:
     """Draws and drives the Simulation in a pygame window"""
-    DESIGN_HEIGHT = 750
+    SCREEN_HEIGHT = 750
     PANEL_WIDTH = 280
     ZONE_RADIUS = 18
     HUB_RADIUS = 40  #: Start and goal are drawn larger than an ordinary zone
-    DRONE_RADIUS = 12
+    DRONE_RADIUS = 28
     EDGE_PADDING = 60
     FPS = 60
 
@@ -48,7 +48,7 @@ class Visualizer:
     MAX_SPEED = 4.0
     SPEED_STEP = 0.5
 
-    PARKED_SPACING = 9.0  # Gap between drones parked in the goal in pixels
+    PARKED_SPACING = 9.0  # Gap between drones parked in the goal
     GOLDEN_ANGLE = 2.4  # Angle in radians between successive parked drones
 
     # Colours used throughout the window.
@@ -65,7 +65,7 @@ class Visualizer:
     CAPACITY: Rgb = (130, 130, 130)  # Zone capacity label
 
     #: Default colours for each zone type
-    ZONE_TYPE_COLORS: dict[str, Rgb] = {
+    ZONE_TYPE_COLORS = {
         "normal": (100, 150, 255),
         "restricted": (255, 165, 0),
         "priority": (0, 200, 200),
@@ -82,14 +82,14 @@ class Visualizer:
         pygame.init()
         self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         pygame.display.set_caption("Fly-in : drone routing simulation")
-        self.scale = self.screen.get_height() / self.DESIGN_HEIGHT
+        self.scale = self.screen.get_height() / self.SCREEN_HEIGHT
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, self.px(18))
         self.font_medium = pygame.font.Font(None, self.px(22))
         self.font_large = pygame.font.Font(None, self.px(28))
 
         drone = pygame.image.load("drone.png").convert_alpha()
-        icon_size = 2 * self.px(self.DRONE_RADIUS)
+        icon_size = self.px(self.DRONE_RADIUS)
         self.drone_icon = pygame.transform.smoothscale(
             drone, (icon_size, icon_size))
 
@@ -115,21 +115,17 @@ class Visualizer:
         self.last_turn: TurnResult | None = None
         self.error: str | None = None
         self.mode = Mode.READY
-        # Drone dots are interpolated between where they were at the end
-        # of the previous turn and where they are now, so movement reads
-        # as flight rather than teleportation.
+        # self.previous remembers where each drone was before the current turn
+        # so the animation can interpolate from there to the new position.
         self.previous: dict[int, tuple[float, float]] = {}
         self.progress = 1.0
         # Drone id to the parking slot it took in the goal. Assigned in
-        # arrival order and never reassigned, so a drone that has landed
-        # keeps its spot instead of shuffling as others arrive.
+        # arrival order so the spiral is filled from the centre outwards.
         self.landed: dict[int, int] = {}
 
-    def idle(self) -> bool:
-        """True when the run is over, or has not been started yet."""
-        return (
-            self.mode is Mode.READY or self.error is not None
-            or self.simulation.finished())
+    def ended(self) -> bool:
+        """True once the run has finished or failed."""
+        return self.error is not None or self.simulation.finished()
 
     def _handle_events(self) -> None:
         """Apply keyboard and window events to the playback state."""
@@ -158,7 +154,7 @@ class Visualizer:
 
     def _toggle_play(self) -> None:
         """Handle Spacebar function: play, pause, or step one turn."""
-        if self.simulation.finished() or self.error is not None:
+        if self.ended():
             return  # The run is over; R replays it.
         if self.mode is Mode.STEPPING:
             self._advance()
@@ -169,7 +165,7 @@ class Visualizer:
 
     def _toggle_stepping(self) -> None:
         """Handle S: switch between playing through and stepping."""
-        if self.simulation.finished() or self.error is not None:
+        if self.ended():
             return
         self.mode = (
             Mode.PLAYING if self.mode is Mode.STEPPING else Mode.STEPPING)
@@ -180,7 +176,7 @@ class Visualizer:
         # hop settles before the next one starts.
         self.progress = min(
             1.0, self.progress + elapsed * self.turns_per_second * 1.5)
-        if self.mode is Mode.PLAYING and not self.idle():
+        if self.mode is Mode.PLAYING and not self.ended():
             if self.progress >= 1.0:
                 self._advance()
 
@@ -244,9 +240,9 @@ class Visualizer:
         if drone.drone_id in self.landed:
             return self._parked_point(self.landed[drone.drone_id])
 
-        here = self.positions.get(drone.zone, (0.0, 0.0))
+        here = self.positions[drone.zone]
         if drone.destination is not None:
-            there = self.positions.get(drone.destination, here)
+            there = self.positions[drone.destination]
             return ((here[0] + there[0]) / 2, (here[1] + there[1]) / 2)
 
         slot = self._zone_slot(drone)
@@ -272,25 +268,16 @@ class Visualizer:
         """Where a delivered drone rests inside the goal.
 
         Slots sit on a golden-angle spiral, which fills a disc evenly
-        from the centre outwards, so the goal packs neatly however many
-        drones end up in it.
+        from the centre outwards. The spacing is a whole icon wide, so
+        the drones never overlap; a big fleet spreads past the edge of
+        the goal circle rather than piling up inside it.
         """
-        centre = self.positions.get(self.graph.end, (0.0, 0.0))
+        centre = self.positions[self.graph.end]
         angle = order * self.GOLDEN_ANGLE
-        distance = self._parked_spacing() * math.sqrt(order)
+        distance = self.px(self.PARKED_SPACING) * math.sqrt(order)
         return (
             centre[0] + distance * math.cos(angle),
             centre[1] + distance * math.sin(angle))
-
-    def _parked_spacing(self) -> float:
-        """Gap between parked drones, tightened when the goal fills up."""
-        outermost = math.sqrt(max(self.nb_drones - 1, 1))
-        # Squeeze the spiral until the whole fleet fits the hub circle,
-        # since that circle no longer grows to meet it.
-        room = (
-            self.px(self.HUB_RADIUS) - self.px(self.DRONE_RADIUS)
-        ) / outermost
-        return min(self.px(self.PARKED_SPACING), room)
 
     def _animated_point(self, drone: Drone) -> tuple[float, float]:
         """A drone's position this frame, interpolated toward its target."""
@@ -309,17 +296,15 @@ class Visualizer:
         self._draw_panel()
         if self.mode is Mode.READY:
             self._draw_opening_card()
-        elif self.error is not None or self.simulation.finished():
+        elif self.ended():
             self._draw_closing_card()
         pygame.display.flip()
 
     def _draw_connections(self) -> None:
         """Draw every link, labelling those that take more than one drone."""
         for connection in self.graph.connections:
-            start = self.positions.get(connection.zone_a)
-            end = self.positions.get(connection.zone_b)
-            if start is None or end is None:
-                continue
+            start = self.positions[connection.zone_a]
+            end = self.positions[connection.zone_b]
             pygame.draw.line(self.screen, self.LINK, start, end, self.px(2))
             if connection.max_link_capacity > 1:
                 position = (
@@ -332,9 +317,7 @@ class Visualizer:
     def _draw_zones(self) -> None:
         """Draw every zone as a labelled circle."""
         for name, zone in self.graph.zones.items():
-            position = self.positions.get(name)
-            if position is None:
-                continue
+            position = self.positions[name]
             point = (int(position[0]), int(position[1]))
             color = self.zone_color(zone)
             size = self.HUB_RADIUS if zone.is_hub() else self.ZONE_RADIUS
@@ -429,15 +412,12 @@ class Visualizer:
                 f"All {self.nb_drones} drones delivered "
                 f"in {self.simulation.turn} turns")
             color = self.ACCENT
-        # No prompt to quit: the final layout stays up for as long as it
-        # is wanted, and the window closes when the viewer closes it.
         self._draw_card(headline, [("R", "watch it again")], color)
 
     def _draw_card(
         self, headline: str, choices: list[tuple[str, str]], color: Rgb
     ) -> None:
-        """Draw a centred card over the map: a headline, then a list of
-        ``(key, what it does)`` choices underneath."""
+        """Draw a centered card over the map"""
         line_height = self.px(24)
         widths = [self.font_large.size(headline)[0] + self.px(60)]
         widths += [

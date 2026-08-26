@@ -173,13 +173,13 @@ class MapParser:
         try:
             number = int(value)
         except ValueError:
-            raise ParseError(num, f"{name} must be an integer") from None
+            raise ParseError(num, f"{name} must be an integer")
         if positive and number < 1:
             raise ParseError(num, f"{name} must be a positive integer")
         return number
 
     def capacity(self, tags: dict[str, str], key: str, num: int) -> int:
-        """Read a capacity tag, defaulting to 1 when absent."""
+        """Read zone capacity, defaulting to 1 when absent."""
         return self._int(tags[key], num, key) if key in tags else 1
 
     def _validate(self) -> None:
