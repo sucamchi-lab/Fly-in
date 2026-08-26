@@ -181,7 +181,8 @@ The algorithm is able to handle the largest maps in the test suite, and the numb
 - [Dijkstra's algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)
 - [heapq](https://docs.python.org/3/library/heapq.html)
 - [Python dataclasses](https://docs.python.org/3/library/dataclasses.html)
-- [pygame documentation](https://www.pygame.org/docs/) 
+- [Python argparse](https://docs.python.org/3/library/argparse.html)
+- [pygame documentation](https://www.pygame.org/docs/)
 
 ### AI usage
 
